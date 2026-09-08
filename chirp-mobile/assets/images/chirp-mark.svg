@@ -1,0 +1,60 @@
+<!--
+  Chirp mark — original songbird artwork (transparent).
+  Drawn from scratch for the Chirp app: round body, swept wing,
+  open chirping beak, and two sound arcs. Not derived from any
+  existing trademarked bird logo.
+  viewBox: 0 0 512 512
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Chirp bird mark">
+  <!-- tail feathers -->
+  <path
+    d="M150 235 L78 198 L96 252 L64 272 L98 300 L80 352 L150 320 Z"
+    fill="#FFFFFF"
+    stroke="#FFFFFF"
+    stroke-width="18"
+    stroke-linejoin="round"
+  />
+  <!-- body -->
+  <ellipse cx="245" cy="285" rx="118" ry="128" fill="#FFFFFF" />
+  <!-- belly shade -->
+  <ellipse cx="250" cy="360" rx="70" ry="34" fill="#E2EAF1" opacity="0.9" />
+  <!-- wing -->
+  <path
+    d="M178 262 C226 248 282 272 300 332 C254 328 200 308 178 262 Z"
+    fill="#94B0C8"
+  />
+  <!-- open beak (chirping) -->
+  <polygon
+    points="348,252 418,232 354,282"
+    fill="#FFC247"
+    stroke="#FFC247"
+    stroke-width="10"
+    stroke-linejoin="round"
+  />
+  <polygon
+    points="352,290 404,300 348,308"
+    fill="#E89B2E"
+    stroke="#E89B2E"
+    stroke-width="10"
+    stroke-linejoin="round"
+  />
+  <!-- eye -->
+  <circle cx="312" cy="228" r="17" fill="#0F2A44" />
+  <circle cx="318" cy="222" r="5.5" fill="#FFFFFF" />
+  <!-- chirp sound arcs -->
+  <path
+    d="M447.6 228.2 A48 48 0 0 1 447.6 303.8"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="15"
+    stroke-linecap="round"
+  />
+  <path
+    d="M472.2 196.7 A88 88 0 0 1 472.2 335.3"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="15"
+    stroke-linecap="round"
+    opacity="0.55"
+  />
+</svg>
