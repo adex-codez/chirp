@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Auth     AuthConfig
 }
 
 type ServerConfig struct {
@@ -24,6 +25,14 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	URL string
+}
+
+// AuthConfig carries the signing secret for access tokens. DevExposeCodes
+// returns verification codes in API responses outside release builds, until
+// a transactional mail sender exists.
+type AuthConfig struct {
+	JWTSecret      string
+	DevExposeCodes bool
 }
 
 const (
@@ -61,6 +70,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("invalid GIN_MODE %q", mode)
 	}
 
+	authCfg, err := loadAuthConfig(mode)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Server: ServerConfig{
 			Host:            host,
@@ -70,9 +84,25 @@ func Load() (Config, error) {
 			ShutdownTimeout: DefaultShutdownTimeout,
 		},
 		Database: DatabaseConfig{URL: databaseURL},
+		Auth:     authCfg,
 	}, nil
 }
 
 func (c ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
+func loadAuthConfig(mode string) (AuthConfig, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		if mode == "release" {
+			// Fail fast rather than sign tokens with a known secret.
+			return AuthConfig{}, fmt.Errorf("JWT_SECRET is required in release mode")
+		}
+		secret = "dev-only-change-me"
+	}
+	return AuthConfig{
+		JWTSecret:      secret,
+		DevExposeCodes: mode != "release",
+	}, nil
 }
