@@ -24,22 +24,38 @@ const (
 	VerificationMaxAttempts = 5
 	// VerificationResendCooldown spaces out re-sends.
 	VerificationResendCooldown = time.Minute
+	// VerificationMaxChallengesPerHour caps how many challenges a User can
+	// mint, so resend cannot be abused to flood an inbox.
+	VerificationMaxChallengesPerHour = 5
 )
 
 const ChallengePurposeVerifyEmail = "verify_email"
 
 var (
-	ErrValidation        = errors.New("validation failed")
-	ErrUsernameTaken     = errors.New("username is already taken")
-	ErrEmailTaken        = errors.New("email is already in use")
-	ErrInvalidCredential = errors.New("invalid email or password")
-	ErrEmailNotVerified  = errors.New("email is not verified")
-	ErrInvalidChallenge  = errors.New("invalid or expired code")
-	ErrChallengeLocked   = errors.New("too many attempts, request a new code")
-	ErrNoPendingVerify   = errors.New("no pending verification for this email")
-	ErrAlreadyVerified   = errors.New("email is already verified")
-	ErrResendTooSoon     = errors.New("verification code was just sent")
+	ErrValidation       = errors.New("validation failed")
+	ErrUsernameTaken    = errors.New("username is already taken")
+	ErrEmailTaken       = errors.New("email is already in use")
+	ErrInvalidSignIn    = errors.New("invalid email or password")
+	ErrInvalidSession   = errors.New("invalid or expired session")
+	ErrEmailNotVerified = errors.New("email is not verified")
+	ErrInvalidChallenge = errors.New("invalid or expired code")
+	ErrChallengeLocked  = errors.New("too many attempts, request a new code")
+	ErrNoPendingVerify  = errors.New("no pending verification for this email")
+	ErrAlreadyVerified  = errors.New("email is already verified")
+	ErrResendTooSoon    = errors.New("verification code was just sent")
+	ErrResendLimit      = errors.New("too many codes requested, try again later")
+	ErrUserNotFound     = errors.New("user not found")
 )
+
+// ValidationError carries the field-level detail behind ErrValidation so the
+// transport can report it without parsing error strings.
+type ValidationError struct {
+	Detail string
+}
+
+func (e ValidationError) Error() string { return "validation failed: " + e.Detail }
+
+func (e ValidationError) Is(target error) bool { return target == ErrValidation }
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]{3,20}$`)
 
@@ -100,16 +116,16 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 	username = strings.TrimSpace(username)
 	email = strings.TrimSpace(email)
 	if !usernamePattern.MatchString(username) {
-		return SignUpResult{}, errors.Join(ErrValidation, errors.New("username must be 3-20 characters of letters, numbers, underscore, or dot"))
+		return SignUpResult{}, ValidationError{Detail: "username must be 3-20 characters of letters, numbers, underscore, or dot"}
 	}
 	if err := validateEmail(email); err != nil {
 		return SignUpResult{}, err
 	}
 	if len(password) < 8 {
-		return SignUpResult{}, errors.Join(ErrValidation, errors.New("password must be at least 8 characters"))
+		return SignUpResult{}, ValidationError{Detail: "password must be at least 8 characters"}
 	}
 	if len(password) > 72 {
-		return SignUpResult{}, errors.Join(ErrValidation, errors.New("password must be at most 72 characters"))
+		return SignUpResult{}, ValidationError{Detail: "password must be at most 72 characters"}
 	}
 
 	if _, err := s.repository.GetUserByUsername(ctx, username); err == nil {
@@ -176,13 +192,13 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 		return AuthResult{}, ErrInvalidChallenge
 	}
 	if challenge.Attempts >= VerificationMaxAttempts {
-		_ = s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
+		// Leave the challenge in place so further guesses keep returning
+		// locked until expiry; only a resend clears it.
 		return AuthResult{}, ErrChallengeLocked
 	}
 	if auth.HashVerificationCode(strings.TrimSpace(code)) != challenge.CodeHash {
 		_ = s.repository.IncrementChallengeAttempts(ctx, challenge.ID)
 		if challenge.Attempts+1 >= VerificationMaxAttempts {
-			_ = s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
 			return AuthResult{}, ErrChallengeLocked
 		}
 		return AuthResult{}, ErrInvalidChallenge
@@ -221,6 +237,14 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 		return SignUpResult{}, err
 	}
 
+	recent, err := s.repository.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeVerifyEmail, s.currentTime().Add(-time.Hour))
+	if err != nil {
+		return SignUpResult{}, err
+	}
+	if recent >= VerificationMaxChallengesPerHour {
+		return SignUpResult{}, ErrResendLimit
+	}
+
 	code, err := s.issueChallenge(ctx, user.ID)
 	if err != nil {
 		return SignUpResult{}, err
@@ -232,24 +256,41 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 	return result, nil
 }
 
-// SignIn signs a verified User in with Password sign-in. Unknown addresses,
-// missing passwords, and wrong passwords all return the same generic error so
-// Users cannot be enumerated.
+// SignIn signs a verified User in with Password sign-in. The password is
+// checked before verification state so wrong passwords always return the same
+// generic error and Users cannot be enumerated; only a correct password on an
+// unverified Email reveals that verification is pending.
 func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel string) (AuthResult, error) {
 	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
-			return AuthResult{}, ErrInvalidCredential
+			return AuthResult{}, ErrInvalidSignIn
 		}
 		return AuthResult{}, err
 	}
 	if !user.HasPassword || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
-		return AuthResult{}, ErrInvalidCredential
+		return AuthResult{}, ErrInvalidSignIn
 	}
 	if !user.EmailVerified {
 		return AuthResult{}, ErrEmailNotVerified
 	}
 	return s.issueSession(ctx, user, deviceLabel)
+}
+
+// Profile reads the current User from a presented access token.
+func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUser, error) {
+	userID, _, err := auth.VerifyAccessToken(s.jwtSecret, accessToken, s.currentTime())
+	if err != nil {
+		return PublicUser{}, ErrInvalidSession
+	}
+	user, err := s.repository.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return PublicUser{}, ErrUserNotFound
+		}
+		return PublicUser{}, err
+	}
+	return publicUser(user), nil
 }
 
 func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string, error) {
@@ -296,10 +337,10 @@ func publicUser(user repository.AuthUser) PublicUser {
 
 func validateEmail(email string) error {
 	if len(email) == 0 || len(email) > 254 {
-		return errors.Join(ErrValidation, errors.New("email must be 1-254 characters"))
+		return ValidationError{Detail: "email must be 1-254 characters"}
 	}
 	if _, err := mail.ParseAddress(email); err != nil {
-		return errors.Join(ErrValidation, errors.New("email must be a valid address"))
+		return ValidationError{Detail: "email must be a valid address"}
 	}
 	return nil
 }

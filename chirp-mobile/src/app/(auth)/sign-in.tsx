@@ -85,7 +85,7 @@ export default function SignIn() {
               {isBusy ? "Signing in…" : "Sign in"}
             </Button>
             <Link href="/sign-up" asChild>
-              <Button variant="outline">Create an account instead</Button>
+              <Button variant="outline">Sign up instead</Button>
             </Link>
           </Card.Footer>
         </Card>

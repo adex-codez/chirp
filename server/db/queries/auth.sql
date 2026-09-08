@@ -47,6 +47,11 @@ UPDATE verification_challenges
 SET attempts = attempts + 1
 WHERE id = $1::uuid;
 
+-- name: CountRecentVerificationChallenges :one
+SELECT COUNT(*)
+FROM verification_challenges
+WHERE user_id = $1::uuid AND purpose = $2 AND created_at > $3;
+
 -- name: CreateSession :one
 INSERT INTO sessions (user_id, refresh_hash, expires_at, device_label)
 VALUES ($1::uuid, $2, $3, $4)

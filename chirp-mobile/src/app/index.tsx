@@ -51,7 +51,7 @@ export default function Index() {
               </Typography.Paragraph>
             ) : (
               <Typography.Paragraph color="muted">
-                You are browsing as a guest. Sign in to use Chirp.
+                You are not signed in yet. Sign in to use Chirp.
               </Typography.Paragraph>
             )}
           </Card.Body>
@@ -70,7 +70,7 @@ export default function Index() {
                   <Button>Sign in</Button>
                 </Link>
                 <Link href="/sign-up" asChild>
-                  <Button variant="outline">Create account</Button>
+                  <Button variant="outline">Sign up</Button>
                 </Link>
               </>
             )}

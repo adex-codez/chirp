@@ -22,6 +22,25 @@ func (q *Queries) ConsumeVerificationChallenge(ctx context.Context, dollar_1 pgt
 	return err
 }
 
+const countRecentVerificationChallenges = `-- name: CountRecentVerificationChallenges :one
+SELECT COUNT(*)
+FROM verification_challenges
+WHERE user_id = $1::uuid AND purpose = $2 AND created_at > $3
+`
+
+type CountRecentVerificationChallengesParams struct {
+	Column1   pgtype.UUID        `json:"column_1"`
+	Purpose   string             `json:"purpose"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) CountRecentVerificationChallenges(ctx context.Context, arg CountRecentVerificationChallengesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentVerificationChallenges, arg.Column1, arg.Purpose, arg.CreatedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, refresh_hash, expires_at, device_label)
 VALUES ($1::uuid, $2, $3, $4)

@@ -35,7 +35,7 @@ export default function SignUp() {
           <Typography type="body-xs" weight="bold" className="text-accent">
             JOIN CHIRP
           </Typography>
-          <Typography.Heading type="h1">Pick your handle.</Typography.Heading>
+          <Typography.Heading type="h1">Pick your Username.</Typography.Heading>
           <Typography.Paragraph color="muted">
             Your Username is unique and public. We verify your Email before you
             can use the app.
@@ -89,10 +89,10 @@ export default function SignUp() {
           </Card.Body>
           <Card.Footer className="flex-col items-stretch gap-3">
             <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Creating…" : "Create account"}
+              {isBusy ? "Creating…" : "Sign up"}
             </Button>
             <Link href="/sign-in" asChild>
-              <Button variant="outline">I already have an account</Button>
+              <Button variant="outline">Back to sign in</Button>
             </Link>
           </Card.Footer>
         </Card>

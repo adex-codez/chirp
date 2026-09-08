@@ -46,6 +46,29 @@ function messageOf(error: unknown): string {
   return "Something went wrong. Try again.";
 }
 
+type StoreSetter = (
+  partial: Partial<
+    Pick<
+      SessionState,
+      "isBusy" | "error" | "status" | "user" | "accessToken" | "refreshToken" | "pendingEmail"
+    >
+  >,
+) => void;
+
+async function runRequest<T>(
+  set: StoreSetter,
+  path: string,
+  body: unknown,
+): Promise<T> {
+  set({ isBusy: true, error: null });
+  try {
+    return await apiPost<T>(path, body);
+  } catch (error) {
+    set({ error: messageOf(error), isBusy: false });
+    throw error;
+  }
+}
+
 /**
  * In-memory session for now. Tokens move to platform secure storage with the
  * refresh flow in the sessions ticket; nothing here persists across restarts.
@@ -60,81 +83,55 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   isBusy: false,
 
   signUp: async (username, email, password) => {
-    set({ isBusy: true, error: null });
-    try {
-      const data = await apiPost<SignUpResponse>("/auth/signup", {
-        username,
-        email,
-        password,
-      });
-      set({
-        status: "pending-verification",
-        user: data.user,
-        pendingEmail: data.user.email,
-        isBusy: false,
-      });
-    } catch (error) {
-      set({ error: messageOf(error), isBusy: false });
-      throw error;
-    }
+    const data = await runRequest<SignUpResponse>(set, "/auth/signup", {
+      username,
+      email,
+      password,
+    });
+    set({
+      status: "pending-verification",
+      user: data.user,
+      pendingEmail: data.user.email,
+      isBusy: false,
+    });
   },
 
   verify: async (code) => {
     const { pendingEmail } = get();
     if (!pendingEmail) {
-      set({ error: "Start by creating an account first." });
+      set({ error: "Start by signing up first." });
       return;
     }
-    set({ isBusy: true, error: null });
-    try {
-      const data = await apiPost<AuthResponse>("/auth/verify", {
-        email: pendingEmail,
-        code,
-      });
-      set({
-        status: "authenticated",
-        user: data.user,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        pendingEmail: null,
-        isBusy: false,
-      });
-    } catch (error) {
-      set({ error: messageOf(error), isBusy: false });
-      throw error;
-    }
+    const data = await runRequest<AuthResponse>(set, "/auth/verify", {
+      email: pendingEmail,
+      code,
+    });
+    set({
+      status: "authenticated",
+      user: data.user,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      pendingEmail: null,
+      isBusy: false,
+    });
   },
 
   resendCode: async () => {
     const { pendingEmail } = get();
     if (!pendingEmail) {
-      set({ error: "Start by creating an account first." });
+      set({ error: "Start by signing up first." });
       return;
     }
-    set({ isBusy: true, error: null });
-    try {
-      await apiPost("/auth/verify/resend", { email: pendingEmail });
-      set({ isBusy: false });
-    } catch (error) {
-      set({ error: messageOf(error), isBusy: false });
-      throw error;
-    }
+    await runRequest(set, "/auth/verify/resend", { email: pendingEmail });
+    set({ isBusy: false });
   },
 
   signIn: async (email, password) => {
-    set({ isBusy: true, error: null });
+    let data: AuthResponse;
     try {
-      const data = await apiPost<AuthResponse>("/auth/login", {
+      data = await runRequest<AuthResponse>(set, "/auth/login", {
         email,
         password,
-      });
-      set({
-        status: "authenticated",
-        user: data.user,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        pendingEmail: null,
-        isBusy: false,
       });
     } catch (error) {
       const message = messageOf(error);
@@ -145,6 +142,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       throw error;
     }
+    set({
+      status: "authenticated",
+      user: data.user,
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      pendingEmail: null,
+      isBusy: false,
+    });
   },
 
   signOut: () =>

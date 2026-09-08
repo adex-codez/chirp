@@ -16,11 +16,12 @@ type authService interface {
 	VerifyEmail(ctx context.Context, email, code, deviceLabel string) (service.AuthResult, error)
 	ResendVerification(ctx context.Context, email string) (service.SignUpResult, error)
 	SignIn(ctx context.Context, email, password, deviceLabel string) (service.AuthResult, error)
+	Profile(ctx context.Context, accessToken string) (service.PublicUser, error)
 }
 
 // AuthHandler is the HTTP transport for Password sign-in joins, verification,
-// and sign-ins. It maps service outcomes to status codes and keeps
-// credential failures generic.
+// sign-ins, and the current-User read. It maps service outcomes to status
+// codes and keeps sign-in failures generic.
 type AuthHandler struct {
 	service authService
 }
@@ -113,14 +114,41 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// Profile handles GET /auth/me.
+func (h *AuthHandler) Profile(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		return
+	}
+	user, err := h.service.Profile(c.Request.Context(), token)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, user)
+}
+
+func bearerToken(header string) (string, bool) {
+	token, found := strings.CutPrefix(header, "Bearer ")
+	if !found || strings.TrimSpace(token) == "" {
+		return "", false
+	}
+	return token, true
+}
+
 func writeAuthError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, service.ErrUsernameTaken):
 		response.Error(c, http.StatusConflict, "username is already taken")
 	case errors.Is(err, service.ErrEmailTaken):
 		response.Error(c, http.StatusConflict, "email is already in use")
-	case errors.Is(err, service.ErrInvalidCredential):
+	case errors.Is(err, service.ErrInvalidSignIn):
 		response.Error(c, http.StatusUnauthorized, "invalid email or password")
+	case errors.Is(err, service.ErrInvalidSession):
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+	case errors.Is(err, service.ErrUserNotFound):
+		response.Error(c, http.StatusNotFound, "user not found")
 	case errors.Is(err, service.ErrEmailNotVerified):
 		response.Error(c, http.StatusForbidden, "email is not verified, check your inbox for the code")
 	case errors.Is(err, service.ErrInvalidChallenge):
@@ -133,6 +161,8 @@ func writeAuthError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadRequest, "email is already verified")
 	case errors.Is(err, service.ErrResendTooSoon):
 		response.Error(c, http.StatusTooManyRequests, "verification code was just sent, wait a minute")
+	case errors.Is(err, service.ErrResendLimit):
+		response.Error(c, http.StatusTooManyRequests, "too many codes requested, try again later")
 	case errors.Is(err, service.ErrValidation):
 		response.Error(c, http.StatusBadRequest, validationMessage(err))
 	default:
@@ -141,14 +171,9 @@ func writeAuthError(c *gin.Context, err error) {
 }
 
 func validationMessage(err error) string {
-	// Validation errors join the sentinel with the human detail; surface
-	// the detail after the sentinel prefix.
-	msg := err.Error()
-	if rest, ok := strings.CutPrefix(msg, service.ErrValidation.Error()+"\n"); ok {
-		return rest
-	}
-	if rest, ok := strings.CutPrefix(msg, service.ErrValidation.Error()+": "); ok {
-		return rest
+	var validation service.ValidationError
+	if errors.As(err, &validation) {
+		return validation.Detail
 	}
 	return "invalid request"
 }

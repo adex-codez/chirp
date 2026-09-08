@@ -31,6 +31,7 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig)
 	authGroup.POST("/verify", auth.Verify)
 	authGroup.POST("/verify/resend", auth.Resend)
 	authGroup.POST("/login", auth.SignIn)
+	authGroup.GET("/me", auth.Profile)
 
 	return router, nil
 }

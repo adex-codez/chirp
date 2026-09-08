@@ -46,6 +46,7 @@ type AuthRepository interface {
 	MarkUserVerified(ctx context.Context, id string) error
 	CreateVerificationChallenge(ctx context.Context, userID, purpose, codeHash string, expiresAt time.Time) (VerificationChallenge, error)
 	GetLatestVerificationChallenge(ctx context.Context, userID, purpose string) (VerificationChallenge, error)
+	CountRecentVerificationChallenges(ctx context.Context, userID, purpose string, since time.Time) (int, error)
 	ConsumeVerificationChallenge(ctx context.Context, id string) error
 	IncrementChallengeAttempts(ctx context.Context, id string) error
 	CreateSession(ctx context.Context, userID, refreshHash string, expiresAt time.Time, deviceLabel string) (string, error)
@@ -166,6 +167,22 @@ func (r *PostgresAuthRepository) GetLatestVerificationChallenge(ctx context.Cont
 		Attempts:  int(row.Attempts),
 		CreatedAt: row.CreatedAt.Time,
 	}, nil
+}
+
+func (r *PostgresAuthRepository) CountRecentVerificationChallenges(ctx context.Context, userID, purpose string, since time.Time) (int, error) {
+	key, err := parseUUID(userID)
+	if err != nil {
+		return 0, ErrAuthNotFound
+	}
+	count, err := r.queries.CountRecentVerificationChallenges(ctx, database.CountRecentVerificationChallengesParams{
+		Column1:   key,
+		Purpose:   purpose,
+		CreatedAt: pgtype.Timestamptz{Time: since, Valid: true},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 func (r *PostgresAuthRepository) ConsumeVerificationChallenge(ctx context.Context, id string) error {

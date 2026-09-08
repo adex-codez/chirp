@@ -39,7 +39,7 @@ export default function Verify() {
           <Typography.Paragraph color="muted">
             {pendingEmail
               ? `We sent a 6-digit code to ${pendingEmail}. It expires in about 20 minutes.`
-              : "Create an account first, then enter the code we send you."}
+              : "Sign up first, then enter the code we send you."}
           </Typography.Paragraph>
         </View>
 
