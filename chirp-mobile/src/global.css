@@ -3,3 +3,53 @@
 @import "heroui-native/styles";
 
 @source "../node_modules/heroui-native/lib";
+
+/*
+ * Chirp design system — source of truth for visual tokens.
+ * HeroUI Native owns the semantic theme (background, surface, muted,
+ * status, border, shadows). Below we extend it in its own idiom:
+ * a brand ramp + accent overrides. Nothing here replaces HeroUI.
+ */
+
+@theme {
+  /* Brand ramp built around the primary #0F2A44 (brand-800). */
+  --color-brand-50: #f2f5f8;
+  --color-brand-100: #e2eaf1;
+  --color-brand-200: #c3d3e2;
+  --color-brand-300: #94b0c8;
+  --color-brand-400: #5f87ac;
+  --color-brand-500: #3d688e;
+  --color-brand-600: #264e71;
+  --color-brand-700: #18395a;
+  --color-brand-800: #0f2a44;
+  --color-brand-900: #0b2036;
+  --color-brand-950: #071627;
+
+  /* App motion tokens (ms). Use with Reanimated or CSS transitions. */
+  --motion-fast: 150ms;
+  --motion-base: 250ms;
+  --motion-slow: 400ms;
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      /* Primary brand color. White text on it is ~14:1 contrast. */
+      --accent: var(--color-brand-800);
+      --accent-foreground: #ffffff;
+      --focus: var(--color-brand-800);
+    }
+
+    @variant dark {
+      /*
+       * #0F2A44 is too dark for a dark background, so dark mode uses the
+       * brand-300 tint with near-black navy text (~7:1 contrast).
+       * Accent-soft / accent-hover variants derive automatically via
+       * color-mix in HeroUI's theme.css.
+       */
+      --accent: var(--color-brand-300);
+      --accent-foreground: var(--color-brand-950);
+      --focus: var(--color-brand-300);
+    }
+  }
+}
