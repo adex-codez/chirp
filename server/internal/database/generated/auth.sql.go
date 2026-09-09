@@ -204,6 +204,38 @@ func (q *Queries) GetLatestVerificationChallenge(ctx context.Context, arg GetLat
 	return i, err
 }
 
+const getSessionByRefreshHash = `-- name: GetSessionByRefreshHash :one
+SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at
+FROM sessions
+WHERE refresh_hash = $1
+LIMIT 1
+`
+
+type GetSessionByRefreshHashRow struct {
+	ID          string             `json:"id"`
+	UserID      string             `json:"user_id"`
+	RefreshHash string             `json:"refresh_hash"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
+	ReplacedBy  interface{}        `json:"replaced_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash string) (GetSessionByRefreshHashRow, error) {
+	row := q.db.QueryRow(ctx, getSessionByRefreshHash, refreshHash)
+	var i GetSessionByRefreshHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshHash,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.ReplacedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
@@ -318,5 +350,43 @@ WHERE id = $1::uuid AND email_verified_at IS NULL
 
 func (q *Queries) MarkUserVerified(ctx context.Context, dollar_1 pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, markUserVerified, dollar_1)
+	return err
+}
+
+const replaceSession = `-- name: ReplaceSession :exec
+UPDATE sessions
+SET replaced_by = $2::uuid, revoked_at = now()
+WHERE id = $1::uuid
+`
+
+type ReplaceSessionParams struct {
+	Column1 pgtype.UUID `json:"column_1"`
+	Column2 pgtype.UUID `json:"column_2"`
+}
+
+func (q *Queries) ReplaceSession(ctx context.Context, arg ReplaceSessionParams) error {
+	_, err := q.db.Exec(ctx, replaceSession, arg.Column1, arg.Column2)
+	return err
+}
+
+const revokeAllUserSessions = `-- name: RevokeAllUserSessions :exec
+UPDATE sessions
+SET revoked_at = now()
+WHERE user_id = $1::uuid AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAllUserSessions(ctx context.Context, dollar_1 pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeAllUserSessions, dollar_1)
+	return err
+}
+
+const revokeSession = `-- name: RevokeSession :exec
+UPDATE sessions
+SET revoked_at = now()
+WHERE id = $1::uuid AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeSession(ctx context.Context, dollar_1 pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeSession, dollar_1)
 	return err
 }

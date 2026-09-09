@@ -17,6 +17,9 @@ type authService interface {
 	ResendVerification(ctx context.Context, email string) (service.SignUpResult, error)
 	SignIn(ctx context.Context, email, password, deviceLabel string) (service.AuthResult, error)
 	Profile(ctx context.Context, accessToken string) (service.PublicUser, error)
+	Refresh(ctx context.Context, refreshToken, deviceLabel string) (service.AuthResult, error)
+	SignOut(ctx context.Context, refreshToken string) error
+	SignOutAll(ctx context.Context, accessToken string) error
 }
 
 // AuthHandler is the HTTP transport for Password sign-in joins, verification,
@@ -52,6 +55,15 @@ type signInRequest struct {
 	Email       string `json:"email" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	DeviceLabel string `json:"device_label"`
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	DeviceLabel  string `json:"device_label"`
+}
+
+type signOutRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 // SignUp handles POST /auth/signup.
@@ -129,6 +141,49 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 	response.Success(c, user)
 }
 
+// Refresh handles POST /auth/refresh.
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req refreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "refresh token is required")
+		return
+	}
+	result, err := h.service.Refresh(c.Request.Context(), req.RefreshToken, req.DeviceLabel)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+// SignOut handles POST /auth/logout. Unknown tokens succeed idempotently.
+func (h *AuthHandler) SignOut(c *gin.Context) {
+	var req signOutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "refresh token is required")
+		return
+	}
+	if err := h.service.SignOut(c.Request.Context(), req.RefreshToken); err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"signed_out": true})
+}
+
+// SignOutAll handles POST /auth/logout-all.
+func (h *AuthHandler) SignOutAll(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		return
+	}
+	if err := h.service.SignOutAll(c.Request.Context(), token); err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"signed_out_everywhere": true})
+}
+
 func bearerToken(header string) (string, bool) {
 	token, found := strings.CutPrefix(header, "Bearer ")
 	if !found || strings.TrimSpace(token) == "" {
@@ -147,6 +202,8 @@ func writeAuthError(c *gin.Context, err error) {
 		response.Error(c, http.StatusUnauthorized, "invalid email or password")
 	case errors.Is(err, service.ErrInvalidSession):
 		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+	case errors.Is(err, service.ErrSessionRevoked):
+		response.Error(c, http.StatusUnauthorized, "session was revoked, sign in again")
 	case errors.Is(err, service.ErrUserNotFound):
 		response.Error(c, http.StatusNotFound, "user not found")
 	case errors.Is(err, service.ErrEmailNotVerified):

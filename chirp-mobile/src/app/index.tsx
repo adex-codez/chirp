@@ -18,6 +18,9 @@ export default function Index() {
   const sessionStatus = useSessionStore((state) => state.status);
   const sessionUser = useSessionStore((state) => state.user);
   const signOut = useSessionStore((state) => state.signOut);
+  const signOutEverywhere = useSessionStore(
+    (state) => state.signOutEverywhere,
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -57,9 +60,14 @@ export default function Index() {
           </Card.Body>
           <Card.Footer className="flex-col items-stretch gap-3">
             {sessionStatus === "authenticated" ? (
-              <Button variant="outline" onPress={signOut}>
-                Sign out
-              </Button>
+              <>
+                <Button variant="outline" onPress={() => void signOut()}>
+                  Sign out
+                </Button>
+                <Button variant="outline" onPress={() => void signOutEverywhere()}>
+                  Sign out everywhere
+                </Button>
+              </>
             ) : sessionStatus === "pending-verification" ? (
               <Link href="/verify" asChild>
                 <Button>Enter verification code</Button>

@@ -37,6 +37,16 @@ type VerificationChallenge struct {
 	CreatedAt time.Time
 }
 
+// Session is the persistence view of a refresh grant: its hash, expiry,
+// revocation state, and rotation lineage (ReplacedBy is empty until rotated).
+type Session struct {
+	ID         string
+	UserID     string
+	ExpiresAt  time.Time
+	Revoked    bool
+	ReplacedBy string
+}
+
 // AuthRepository owns User, challenge, and session persistence.
 type AuthRepository interface {
 	CreateUser(ctx context.Context, username, email, passwordHash string) (AuthUser, error)
@@ -50,6 +60,10 @@ type AuthRepository interface {
 	ConsumeVerificationChallenge(ctx context.Context, id string) error
 	IncrementChallengeAttempts(ctx context.Context, id string) error
 	CreateSession(ctx context.Context, userID, refreshHash string, expiresAt time.Time, deviceLabel string) (string, error)
+	GetSessionByRefreshHash(ctx context.Context, refreshHash string) (Session, error)
+	ReplaceSession(ctx context.Context, id, replacedBy string) error
+	RevokeSession(ctx context.Context, id string) error
+	RevokeAllUserSessions(ctx context.Context, userID string) error
 }
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
@@ -216,6 +230,51 @@ func (r *PostgresAuthRepository) CreateSession(ctx context.Context, userID, refr
 		return "", err
 	}
 	return row.ID, nil
+}
+
+func (r *PostgresAuthRepository) GetSessionByRefreshHash(ctx context.Context, refreshHash string) (Session, error) {
+	row, err := r.queries.GetSessionByRefreshHash(ctx, refreshHash)
+	if err != nil {
+		return Session{}, mapNoRows(err)
+	}
+	return Session{
+		ID:         row.ID,
+		UserID:     row.UserID,
+		ExpiresAt:  row.ExpiresAt.Time,
+		Revoked:    row.RevokedAt.Valid,
+		ReplacedBy: row.ReplacedBy,
+	}, nil
+}
+
+func (r *PostgresAuthRepository) ReplaceSession(ctx context.Context, id, replacedBy string) error {
+	key, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	replacement, err := parseUUID(replacedBy)
+	if err != nil {
+		return err
+	}
+	return r.queries.ReplaceSession(ctx, database.ReplaceSessionParams{
+		Column1: key,
+		Column2: replacement,
+	})
+}
+
+func (r *PostgresAuthRepository) RevokeSession(ctx context.Context, id string) error {
+	key, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	return r.queries.RevokeSession(ctx, key)
+}
+
+func (r *PostgresAuthRepository) RevokeAllUserSessions(ctx context.Context, userID string) error {
+	key, err := parseUUID(userID)
+	if err != nil {
+		return err
+	}
+	return r.queries.RevokeAllUserSessions(ctx, key)
 }
 
 func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz) AuthUser {
