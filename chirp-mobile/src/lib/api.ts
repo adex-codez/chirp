@@ -17,19 +17,7 @@ type ApiEnvelope<T> = {
   error?: string;
 };
 
-export async function apiPost<T>(
-  path: string,
-  body: unknown,
-  accessToken?: string,
-): Promise<T> {
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+async function readEnvelope<T>(res: Response): Promise<T> {
   const envelope = (await res.json()) as ApiEnvelope<T>;
   if (!res.ok || !envelope.success) {
     throw new ApiError(
@@ -40,18 +28,26 @@ export async function apiPost<T>(
   return envelope.data as T;
 }
 
-export async function apiGet<T>(path: string, accessToken: string): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init: {
+    method?: "GET" | "POST";
+    body?: unknown;
+    accessToken?: string;
+  } = {},
+): Promise<T> {
+  const { method = "GET", body, accessToken } = init;
   const res = await fetch(`${baseUrl}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    method,
+    headers: {
+      ...(body !== undefined
+        ? { "Content-Type": "application/json" }
+        : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
-  const envelope = (await res.json()) as ApiEnvelope<T>;
-  if (!res.ok || !envelope.success) {
-    throw new ApiError(
-      res.status,
-      envelope.error ?? "Something went wrong. Try again.",
-    );
-  }
-  return envelope.data as T;
+  return readEnvelope<T>(res);
 }
 
 type AuthHooks = {
@@ -104,14 +100,7 @@ export async function apiAuth<T>(
     },
   });
   if (res.status !== 401) {
-    const envelope = (await res.json()) as ApiEnvelope<T>;
-    if (!res.ok || !envelope.success) {
-      throw new ApiError(
-        res.status,
-        envelope.error ?? "Something went wrong. Try again.",
-      );
-    }
-    return envelope.data as T;
+    return readEnvelope<T>(res);
   }
   const renewed = await singleFlightRefresh();
   if (!renewed) {
@@ -125,13 +114,12 @@ export async function apiAuth<T>(
       Authorization: `Bearer ${renewed}`,
     },
   });
-  const envelope = (await retry.json()) as ApiEnvelope<T>;
-  if (!retry.ok || !envelope.success) {
-    if (retry.status === 401) hooks.onAuthFailed();
-    throw new ApiError(
-      retry.status,
-      envelope.error ?? "Something went wrong. Try again.",
-    );
+  try {
+    return await readEnvelope<T>(retry);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      hooks.onAuthFailed();
+    }
+    throw error;
   }
-  return envelope.data as T;
 }

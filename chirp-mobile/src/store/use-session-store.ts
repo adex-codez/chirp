@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { ApiError, apiGet, apiPost, configureAuth, singleFlightRefresh } from "@/lib/api";
+import { ApiError, apiFetch, configureAuth, singleFlightRefresh } from "@/lib/api";
 import {
   clearSession,
   loadSession,
@@ -83,7 +83,7 @@ async function runRequest<T>(
 ): Promise<T> {
   set({ isBusy: true, error: null });
   try {
-    return await apiPost<T>(path, body);
+    return await apiFetch<T>(path, { method: "POST", body });
   } catch (error) {
     set({ error: messageOf(error), isBusy: false });
     throw error;
@@ -171,7 +171,9 @@ export const useSessionStore = create<SessionState>((set, get) => {
         if (accessExpiringSoon(saved.accessToken)) {
           throw new Error("expired");
         }
-        const user = await apiGet<SessionUser>("/auth/me", saved.accessToken);
+        const user = await apiFetch<SessionUser>("/auth/me", {
+          accessToken: saved.accessToken,
+        });
         set({
           status: "authenticated",
           user,
@@ -277,7 +279,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
       const { refreshToken } = get();
       if (refreshToken) {
         try {
-          await apiPost("/auth/logout", { refresh_token: refreshToken });
+          await apiFetch("/auth/logout", {
+            method: "POST",
+            body: { refresh_token: refreshToken },
+          });
         } catch {
           // Best effort: the local session is dropped regardless.
         }
@@ -297,7 +302,11 @@ export const useSessionStore = create<SessionState>((set, get) => {
           token = get().accessToken;
         }
         if (token) {
-          await apiPost("/auth/logout-all", {}, token);
+          await apiFetch("/auth/logout-all", {
+            method: "POST",
+            body: {},
+            accessToken: token,
+          });
         }
       } catch {
         // Best effort: the local session is dropped regardless.
@@ -328,8 +337,9 @@ configureAuth({
     const { refreshToken } = useSessionStore.getState();
     if (!refreshToken) return null;
     try {
-      const data = await apiPost<AuthResponse>("/auth/refresh", {
-        refresh_token: refreshToken,
+      const data = await apiFetch<AuthResponse>("/auth/refresh", {
+        method: "POST",
+        body: { refresh_token: refreshToken },
       });
       useSessionStore.setState({
         status: "authenticated",
