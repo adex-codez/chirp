@@ -12,6 +12,7 @@ export type SessionUser = {
   username: string;
   email: string;
   verified: boolean;
+  hasPassword: boolean;
 };
 
 type AuthTokens = {
@@ -67,6 +68,14 @@ type SessionState = {
   ) => Promise<void>;
   setUsername: (username: string) => Promise<void>;
   cancelUsernamePick: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (
+    email: string,
+    code: string,
+    newPassword: string,
+  ) => Promise<void>;
+  changeUsername: (username: string) => Promise<void>;
+  addPassword: (newPassword: string) => Promise<void>;
   refreshTokens: () => Promise<boolean>;
   signOut: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
@@ -185,23 +194,28 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
     restore: async () => {
       const saved = await loadSession();
+      // Sessions persisted before hasPassword existed normalize to true;
+      // the server confirms the real value on the next /auth/me call.
+      const savedUser = saved?.user
+        ? { ...saved.user, hasPassword: saved.user.hasPassword ?? true }
+        : null;
       if (!saved?.refreshToken || !saved.accessToken) {
         // A pending Username grant survives restarts while it is unexpired.
         if (
           saved?.pendingToken &&
-          saved.user &&
+          savedUser &&
           !accessExpiringSoon(saved.pendingToken)
         ) {
           set({
             status: "needs-username",
-            user: saved.user,
+            user: savedUser,
             pendingToken: saved.pendingToken,
           });
           return;
         }
         set({
           status: saved?.pendingEmail ? "pending-verification" : "guest",
-          user: saved?.user ?? null,
+          user: savedUser,
           pendingEmail: saved?.pendingEmail ?? null,
           pendingToken: null,
         });
@@ -231,10 +245,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
           // Transient failure (offline): trust the saved tokens only while
           // access is unexpired and a User is present; the interceptor
           // retries once connectivity returns.
-          if (saved.user && !accessExpiringSoon(saved.accessToken)) {
+          if (savedUser && !accessExpiringSoon(saved.accessToken)) {
             set({
               status: "authenticated",
-              user: saved.user,
+              user: savedUser,
               accessToken: saved.accessToken,
               refreshToken: saved.refreshToken,
               pendingEmail: null,
@@ -358,6 +372,68 @@ export const useSessionStore = create<SessionState>((set, get) => {
       // The pending grant is simply discarded; the server row stays
       // Username-less until its owner returns through Social sign-in.
       await get().dropToGuest();
+    },
+
+    forgotPassword: async (email) => {
+      // Neutral by design: success reveals nothing about whether the
+      // address exists. Transport failures (rate limits) still surface.
+      await runRequest(set, "/auth/password/forgot", { email });
+      set({ isBusy: false });
+    },
+
+    resetPassword: async (email, code, newPassword) => {
+      await runRequest(set, "/auth/password/reset", {
+        email,
+        code,
+        new_password: newPassword,
+      });
+      set({ isBusy: false });
+    },
+
+    changeUsername: async (username) => {
+      const { accessToken } = get();
+      if (!accessToken) {
+        set({ error: "You are not signed in." });
+        return;
+      }
+      set({ isBusy: true, error: null });
+      try {
+        const user = await apiFetch<SessionUser>("/auth/username/change", {
+          method: "POST",
+          body: { username },
+          accessToken,
+        });
+        set({ user, isBusy: false });
+        await persist();
+      } catch (error) {
+        set({ error: messageOf(error), isBusy: false });
+        throw error;
+      }
+    },
+
+    addPassword: async (newPassword) => {
+      const { accessToken, user } = get();
+      if (!accessToken) {
+        set({ error: "You are not signed in." });
+        return;
+      }
+      set({ isBusy: true, error: null });
+      try {
+        await apiFetch("/auth/password", {
+          method: "POST",
+          body: { new_password: newPassword },
+          accessToken,
+        });
+        if (user) {
+          set({ user: { ...user, hasPassword: true }, isBusy: false });
+          await persist();
+        } else {
+          set({ isBusy: false });
+        }
+      } catch (error) {
+        set({ error: messageOf(error), isBusy: false });
+        throw error;
+      }
     },
 
     refreshTokens: async () => {

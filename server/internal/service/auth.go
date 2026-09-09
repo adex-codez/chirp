@@ -32,6 +32,7 @@ const (
 )
 
 const ChallengePurposeVerifyEmail = "verify_email"
+const ChallengePurposeResetPassword = "reset_password"
 
 var (
 	ErrValidation          = errors.New("validation failed")
@@ -55,6 +56,7 @@ var (
 	ErrSocialTokenInvalid  = errors.New("invalid social token")
 	ErrSocialUnavailable   = errors.New("could not verify social token")
 	ErrUsernameAlreadySet  = errors.New("username is already set")
+	ErrPasswordAlreadySet  = errors.New("password is already set, use reset instead")
 )
 
 // ValidationError carries the field-level detail behind ErrValidation so the
@@ -84,12 +86,14 @@ var (
 	passwordSpecialPattern = regexp.MustCompile(`[^A-Za-z0-9]`)
 )
 
-// PublicUser is the outward view of a User: handle, contact, verification state.
+// PublicUser is the outward view of a User: handle, contact, verification
+// state, and whether Password sign-in is available.
 type PublicUser struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Verified bool   `json:"verified"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	Verified    bool   `json:"verified"`
+	HasPassword bool   `json:"has_password"`
 }
 
 // AuthResult is a signed-in session: the User plus its first token pair.
@@ -205,35 +209,10 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 		return AuthResult{}, ErrAlreadyVerified
 	}
 
-	challenge, err := s.repository.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeVerifyEmail)
-	if err != nil {
-		if errors.Is(err, repository.ErrAuthNotFound) {
-			return AuthResult{}, ErrInvalidChallenge
-		}
+	if err := s.checkChallenge(ctx, user.ID, ChallengePurposeVerifyEmail, code); err != nil {
 		return AuthResult{}, err
 	}
 
-	now := s.currentTime()
-	if now.After(challenge.ExpiresAt) {
-		_ = s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
-		return AuthResult{}, ErrInvalidChallenge
-	}
-	if challenge.Attempts >= VerificationMaxAttempts {
-		// Leave the challenge in place so further guesses keep returning
-		// locked until expiry; only a resend clears it.
-		return AuthResult{}, ErrChallengeLocked
-	}
-	if auth.HashVerificationCode(strings.TrimSpace(code)) != challenge.CodeHash {
-		_ = s.repository.IncrementChallengeAttempts(ctx, challenge.ID)
-		if challenge.Attempts+1 >= VerificationMaxAttempts {
-			return AuthResult{}, ErrChallengeLocked
-		}
-		return AuthResult{}, ErrInvalidChallenge
-	}
-
-	if err := s.repository.ConsumeVerificationChallenge(ctx, challenge.ID); err != nil {
-		return AuthResult{}, err
-	}
 	if err := s.repository.MarkUserVerified(ctx, user.ID); err != nil {
 		return AuthResult{}, err
 	}
@@ -532,6 +511,143 @@ func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, 
 	return identity, nil
 }
 
+// ForgotPassword issues a reset challenge for a verified Email. Unknown or
+// unverified addresses get the same neutral answer without a challenge, so
+// accounts cannot be enumerated through this endpoint.
+func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
+	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
+	if err != nil || !user.EmailVerified {
+		if err != nil && !errors.Is(err, repository.ErrAuthNotFound) {
+			return err
+		}
+		return nil
+	}
+
+	if pending, err := s.repository.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeResetPassword); err == nil {
+		if s.currentTime().Sub(pending.CreatedAt) < VerificationResendCooldown {
+			return ErrResendTooSoon
+		}
+		_ = s.repository.ConsumeVerificationChallenge(ctx, pending.ID)
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return err
+	}
+
+	recent, err := s.repository.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeResetPassword, s.currentTime().Add(-time.Hour))
+	if err != nil {
+		return err
+	}
+	if recent >= VerificationMaxChallengesPerHour {
+		return ErrResendLimit
+	}
+
+	_, err = s.issuePurposeChallenge(ctx, user.ID, ChallengePurposeResetPassword)
+	return err
+}
+
+// ResetPassword consumes a reset challenge, replaces the stored secret under
+// the shared password policy, and revokes every pre-reset session.
+func (s *AuthService) ResetPassword(ctx context.Context, email, code, password string) error {
+	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return ErrInvalidChallenge
+		}
+		return err
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	if err := s.checkChallenge(ctx, user.ID, ChallengePurposeResetPassword, code); err != nil {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := s.repository.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
+		return err
+	}
+	return s.repository.RevokeAllUserSessions(ctx, user.ID)
+}
+
+// AddPassword sets the first password for a signed-in User that has none
+// (typically a Social sign-in join), under the shared password policy. From
+// then on both methods reach the same User.
+func (s *AuthService) AddPassword(ctx context.Context, accessToken, password string) error {
+	user, err := s.Profile(ctx, accessToken)
+	if err != nil {
+		return err
+	}
+	full, err := s.repository.GetUserByID(ctx, user.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	if full.HasPassword {
+		return ErrPasswordAlreadySet
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.repository.UpdatePassword(ctx, user.ID, string(hash))
+}
+
+// ChangeUsername renames a signed-in User under the same format and
+// uniqueness rules as sign-up.
+func (s *AuthService) ChangeUsername(ctx context.Context, accessToken, username string) (PublicUser, error) {
+	user, err := s.Profile(ctx, accessToken)
+	if err != nil {
+		return PublicUser{}, err
+	}
+	updated, err := s.assignUsername(ctx, user.ID, username)
+	if err != nil {
+		return PublicUser{}, err
+	}
+	return publicUser(updated), nil
+}
+
+// assignUsername validates, availability-checks, and commits a Username.
+func (s *AuthService) assignUsername(ctx context.Context, userID, username string) (repository.AuthUser, error) {
+	if err := validateUsername(username); err != nil {
+		return repository.AuthUser{}, err
+	}
+	username = strings.TrimSpace(username)
+	if existing, err := s.repository.GetUserByUsername(ctx, username); err == nil {
+		if existing.ID != userID {
+			return repository.AuthUser{}, ErrUsernameTaken
+		}
+		return existing, nil
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return repository.AuthUser{}, err
+	}
+	updated, err := s.repository.UpdateUsername(ctx, userID, username)
+	if err != nil {
+		return repository.AuthUser{}, mapTaken(err)
+	}
+	return updated, nil
+}
+
+// issuePurposeChallenge creates a challenge like issueChallenge but for an
+// explicit purpose, returning the raw code for the delivery channel.
+func (s *AuthService) issuePurposeChallenge(ctx context.Context, userID, purpose string) (string, error) {
+	code, hash, err := auth.NewVerificationCode()
+	if err != nil {
+		return "", err
+	}
+	_, err = s.repository.CreateVerificationChallenge(ctx, userID, purpose, hash, s.currentTime().Add(VerificationCodeTTL))
+	if err != nil {
+		return "", err
+	}
+	return code, nil
+}
+
 // Profile reads the current User from a presented access token. Pending
 // grants are rejected: they authorize only setting the Username.
 func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUser, error) {
@@ -550,6 +666,36 @@ func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUs
 		return PublicUser{}, err
 	}
 	return publicUser(user), nil
+}
+
+// checkChallenge validates a code against the latest challenge for a
+// purpose, consuming it on success, expiry, or lock. Wrong guesses count
+// toward the lock; locked challenges stay until expiry or replacement.
+func (s *AuthService) checkChallenge(ctx context.Context, userID, purpose, code string) error {
+	challenge, err := s.repository.GetLatestVerificationChallenge(ctx, userID, purpose)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return ErrInvalidChallenge
+		}
+		return err
+	}
+
+	if s.currentTime().After(challenge.ExpiresAt) {
+		_ = s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
+		return ErrInvalidChallenge
+	}
+	if challenge.Attempts >= VerificationMaxAttempts {
+		return ErrChallengeLocked
+	}
+	if auth.HashVerificationCode(strings.TrimSpace(code)) != challenge.CodeHash {
+		_ = s.repository.IncrementChallengeAttempts(ctx, challenge.ID)
+		if challenge.Attempts+1 >= VerificationMaxAttempts {
+			return ErrChallengeLocked
+		}
+		return ErrInvalidChallenge
+	}
+
+	return s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
 }
 
 func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string, error) {
@@ -588,10 +734,11 @@ func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser
 
 func publicUser(user repository.AuthUser) PublicUser {
 	return PublicUser{
-		ID:       user.ID,
-		Username: user.Username,
-		Email:    user.Email,
-		Verified: user.EmailVerified,
+		ID:          user.ID,
+		Username:    user.Username,
+		Email:       user.Email,
+		Verified:    user.EmailVerified,
+		HasPassword: user.HasPassword,
 	}
 }
 

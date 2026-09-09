@@ -77,6 +77,7 @@ type AuthRepository interface {
 	GetIdentity(ctx context.Context, provider, providerSub string) (LinkedIdentity, error)
 	CreateIdentity(ctx context.Context, userID, provider, providerSub, email string) (LinkedIdentity, error)
 	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
+	UpdatePassword(ctx context.Context, id, passwordHash string) error
 }
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
@@ -347,6 +348,17 @@ func (r *PostgresAuthRepository) UpdateUsername(ctx context.Context, id, usernam
 		return AuthUser{}, mapNoRows(err)
 	}
 	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
+}
+
+func (r *PostgresAuthRepository) UpdatePassword(ctx context.Context, id, passwordHash string) error {
+	key, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	return r.queries.UpdatePassword(ctx, database.UpdatePasswordParams{
+		Column1:      key,
+		PasswordHash: pgtype.Text{String: passwordHash, Valid: true},
+	})
 }
 
 func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz) AuthUser {
