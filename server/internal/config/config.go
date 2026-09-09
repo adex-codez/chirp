@@ -14,6 +14,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Auth     AuthConfig
+	Mail     MailConfig
 }
 
 type ServerConfig struct {
@@ -28,10 +29,18 @@ type DatabaseConfig struct {
 	URL string
 }
 
+// MailConfig carries the Sendlib transactional mail sender settings.
+// Empty APIKey disables sending (dev/test); codes stay in API responses.
+type MailConfig struct {
+	SendlibAPIKey  string
+	SendlibBaseURL string
+	SendlibFrom    string
+}
+
 // AuthConfig carries the signing secret for access tokens, the audiences
 // accepted for Social sign-in tokens, and the dev code exposure flag.
 // DevExposeCodes returns verification codes in API responses outside release
-// builds, until a transactional mail sender exists.
+// builds, alongside the transactional mail send.
 type AuthConfig struct {
 	JWTSecret        string
 	DevExposeCodes   bool
@@ -89,6 +98,7 @@ func Load() (Config, error) {
 		},
 		Database: DatabaseConfig{URL: databaseURL},
 		Auth:     authCfg,
+		Mail:     loadMailConfig(),
 	}, nil
 }
 
@@ -104,6 +114,18 @@ func splitList(raw string) []string {
 		}
 	}
 	return out
+}
+
+func loadMailConfig() MailConfig {
+	baseURL := os.Getenv("SENDLIB_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://sendlib.samueltuoyo.com/api/send"
+	}
+	return MailConfig{
+		SendlibAPIKey:  strings.TrimSpace(os.Getenv("SENDLIB_API_KEY")),
+		SendlibBaseURL: strings.TrimSpace(baseURL),
+		SendlibFrom:    strings.TrimSpace(os.Getenv("SENDLIB_FROM")),
+	}
 }
 
 func loadAuthConfig(mode string) (AuthConfig, error) {

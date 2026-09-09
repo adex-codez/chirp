@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/mail"
 	"regexp"
 	"strings"
 	"time"
 
 	"backend/internal/auth"
+	"backend/internal/mail"
 	"backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -105,7 +107,8 @@ type AuthResult struct {
 }
 
 // SignUpResult is the answer to a join: the User plus verification state.
-// DevCode is populated only outside release builds, until a mail sender exists.
+// DevCode is populated only outside release builds, alongside the
+// transactional mail send.
 type SignUpResult struct {
 	User             PublicUser `json:"user"`
 	VerificationSent bool       `json:"verification_sent"`
@@ -120,19 +123,22 @@ type AuthService struct {
 	devExposeCodes  bool
 	appleAudience   string
 	googleAudiences []string
+	mailer          *mail.Client
 	now             func() time.Time
 }
 
 // NewAuthService wires the service from plain values so the composition
-// point owns configuration. now is nil in production (uses time.Now) and
-// overridden in tests.
-func NewAuthService(repo repository.AuthRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string) *AuthService {
+// point owns configuration. mailer may be nil (or disabled without an API
+// key): sends are skipped and codes stay in responses. now is nil in
+// production (uses time.Now) and overridden in tests.
+func NewAuthService(repo repository.AuthRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client) *AuthService {
 	return &AuthService{
 		repository:      repo,
 		jwtSecret:       jwtSecret,
 		devExposeCodes:  devExposeCodes,
 		appleAudience:   appleAudience,
 		googleAudiences: googleAudiences,
+		mailer:          mailer,
 		now:             nil,
 	}
 }
@@ -182,6 +188,9 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 	code, err := s.issueChallenge(ctx, created.ID)
 	if err != nil {
 		return SignUpResult{}, err
+	}
+	if err := s.mailer.SendVerificationCode(ctx, email, code); err != nil {
+		slog.Warn("verification Email failed to send", "error", err, "email", email)
 	}
 
 	result := SignUpResult{
@@ -255,6 +264,9 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 	code, err := s.issueChallenge(ctx, user.ID)
 	if err != nil {
 		return SignUpResult{}, err
+	}
+	if err := s.mailer.SendVerificationCode(ctx, email, code); err != nil {
+		slog.Warn("verification Email failed to send", "error", err, "email", email)
 	}
 	result := SignUpResult{User: publicUser(user), VerificationSent: true}
 	if s.devExposeCodes {
@@ -534,8 +546,14 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return nil
 	}
 
-	_, err = s.issuePurposeChallenge(ctx, user.ID, ChallengePurposeResetPassword)
-	return err
+	code, err := s.issuePurposeChallenge(ctx, user.ID, ChallengePurposeResetPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.mailer.SendPasswordResetCode(ctx, user.Email, code); err != nil {
+		slog.Warn("reset Email failed to send", "error", err, "email", user.Email)
+	}
+	return nil
 }
 
 // ResetPassword consumes a reset challenge, replaces the stored secret under
