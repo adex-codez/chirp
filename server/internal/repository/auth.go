@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"backend/internal/database"
+	"backend/internal/database/generated"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -255,7 +255,7 @@ func (r *PostgresAuthRepository) GetSessionByRefreshHash(ctx context.Context, re
 		UserID:     row.UserID,
 		ExpiresAt:  row.ExpiresAt.Time,
 		Revoked:    row.RevokedAt.Valid,
-		ReplacedBy: row.ReplacedBy,
+		ReplacedBy: replacedByString(row.ReplacedBy),
 	}, nil
 }
 
@@ -373,4 +373,18 @@ func mapNoRows(err error) error {
 		return ErrAuthNotFound
 	}
 	return err
+}
+
+// replacedByString decodes the replaced_by text column, which sqlc types as
+// interface{} since the text cast hides the concrete type from it. The pgx
+// driver returns it as a string.
+func replacedByString(v interface{}) string {
+	switch s := v.(type) {
+	case string:
+		return s
+	case []byte:
+		return string(s)
+	default:
+		return ""
+	}
 }
