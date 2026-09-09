@@ -45,6 +45,7 @@ var (
 	ErrResendTooSoon    = errors.New("verification code was just sent")
 	ErrResendLimit      = errors.New("too many codes requested, try again later")
 	ErrUserNotFound     = errors.New("user not found")
+	ErrSessionRevoked   = errors.New("session was revoked, sign in again")
 )
 
 // ValidationError carries the field-level detail behind ErrValidation so the
@@ -215,7 +216,8 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 		return AuthResult{}, err
 	}
 	user.EmailVerified = true
-	return s.issueSession(ctx, user, deviceLabel)
+	result, _, err := s.issueSession(ctx, user, deviceLabel)
+	return result, err
 }
 
 // ResendVerification invalidates the pending challenge and issues a fresh one.
@@ -278,7 +280,67 @@ func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel s
 	if !user.EmailVerified {
 		return AuthResult{}, ErrEmailNotVerified
 	}
-	return s.issueSession(ctx, user, deviceLabel)
+	result, _, err := s.issueSession(ctx, user, deviceLabel)
+	return result, err
+}
+
+// Refresh rotates a refresh grant: the presenting token is single-use, and a
+// fresh pair is issued. Presenting an already-rotated or revoked token signals
+// theft, so every session of the User is revoked instead.
+func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel string) (AuthResult, error) {
+	session, err := s.repository.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return AuthResult{}, ErrInvalidSession
+		}
+		return AuthResult{}, err
+	}
+	if session.Revoked || session.ReplacedBy != "" {
+		_ = s.repository.RevokeAllUserSessions(ctx, session.UserID)
+		return AuthResult{}, ErrSessionRevoked
+	}
+	if !s.currentTime().Before(session.ExpiresAt) {
+		_ = s.repository.RevokeSession(ctx, session.ID)
+		return AuthResult{}, ErrInvalidSession
+	}
+
+	user, err := s.repository.GetUserByID(ctx, session.UserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return AuthResult{}, ErrUserNotFound
+		}
+		return AuthResult{}, err
+	}
+	result, newSessionID, err := s.issueSession(ctx, user, deviceLabel)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	if err := s.repository.ReplaceSession(ctx, session.ID, newSessionID); err != nil {
+		return AuthResult{}, err
+	}
+	return result, nil
+}
+
+// SignOut revokes the presenting session only. Unknown tokens succeed
+// idempotently: there is nothing left to cut off.
+func (s *AuthService) SignOut(ctx context.Context, refreshToken string) error {
+	session, err := s.repository.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return nil
+		}
+		return err
+	}
+	return s.repository.RevokeSession(ctx, session.ID)
+}
+
+// SignOutAll revokes every session of the User behind the access token.
+func (s *AuthService) SignOutAll(ctx context.Context, accessToken string) error {
+	user, err := s.Profile(ctx, accessToken)
+	if err != nil {
+		return err
+	}
+	return s.repository.RevokeAllUserSessions(ctx, user.ID)
 }
 
 // Profile reads the current User from a presented access token.
@@ -309,25 +371,26 @@ func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string
 	return code, nil
 }
 
-func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser, deviceLabel string) (AuthResult, error) {
+func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser, deviceLabel string) (AuthResult, string, error) {
 	now := s.currentTime()
 	access, err := auth.SignAccessToken(s.jwtSecret, user.ID, user.Username, AccessTokenTTL, now)
 	if err != nil {
-		return AuthResult{}, err
+		return AuthResult{}, "", err
 	}
 	refresh, refreshHash, err := auth.NewRefreshToken()
 	if err != nil {
-		return AuthResult{}, err
+		return AuthResult{}, "", err
 	}
-	if _, err := s.repository.CreateSession(ctx, user.ID, refreshHash, now.Add(RefreshTokenTTL), deviceLabel); err != nil {
-		return AuthResult{}, err
+	sessionID, err := s.repository.CreateSession(ctx, user.ID, refreshHash, now.Add(RefreshTokenTTL), deviceLabel)
+	if err != nil {
+		return AuthResult{}, "", err
 	}
 	return AuthResult{
 		User:         publicUser(user),
 		AccessToken:  access,
 		RefreshToken: refresh,
 		ExpiresIn:    int(AccessTokenTTL.Seconds()),
-	}, nil
+	}, sessionID, nil
 }
 
 func publicUser(user repository.AuthUser) PublicUser {

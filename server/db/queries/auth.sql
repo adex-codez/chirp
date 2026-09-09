@@ -56,3 +56,24 @@ WHERE user_id = $1::uuid AND purpose = $2 AND created_at > $3;
 INSERT INTO sessions (user_id, refresh_hash, expires_at, device_label)
 VALUES ($1::uuid, $2, $3, $4)
 RETURNING id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, created_at;
+
+-- name: GetSessionByRefreshHash :one
+SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at
+FROM sessions
+WHERE refresh_hash = $1
+LIMIT 1;
+
+-- name: ReplaceSession :exec
+UPDATE sessions
+SET replaced_by = $2::uuid, revoked_at = now()
+WHERE id = $1::uuid;
+
+-- name: RevokeSession :exec
+UPDATE sessions
+SET revoked_at = now()
+WHERE id = $1::uuid AND revoked_at IS NULL;
+
+-- name: RevokeAllUserSessions :exec
+UPDATE sessions
+SET revoked_at = now()
+WHERE user_id = $1::uuid AND revoked_at IS NULL;
