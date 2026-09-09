@@ -59,6 +59,13 @@ func (e ValidationError) Is(target error) bool { return target == ErrValidation 
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]{3,20}$`)
 
+var (
+	passwordUpperPattern   = regexp.MustCompile(`[A-Z]`)
+	passwordLowerPattern   = regexp.MustCompile(`[a-z]`)
+	passwordDigitPattern   = regexp.MustCompile(`[0-9]`)
+	passwordSpecialPattern = regexp.MustCompile(`[^A-Za-z0-9]`)
+)
+
 // PublicUser is the outward view of a User: handle, contact, verification state.
 type PublicUser struct {
 	ID       string `json:"id"`
@@ -121,11 +128,8 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 	if err := validateEmail(email); err != nil {
 		return SignUpResult{}, err
 	}
-	if len(password) < 8 {
-		return SignUpResult{}, ValidationError{Detail: "password must be at least 8 characters"}
-	}
-	if len(password) > 72 {
-		return SignUpResult{}, ValidationError{Detail: "password must be at most 72 characters"}
+	if err := validatePassword(password); err != nil {
+		return SignUpResult{}, err
 	}
 
 	if _, err := s.repository.GetUserByUsername(ctx, username); err == nil {
@@ -333,6 +337,19 @@ func publicUser(user repository.AuthUser) PublicUser {
 		Email:    user.Email,
 		Verified: user.EmailVerified,
 	}
+}
+
+func validatePassword(password string) error {
+	if len(password) < 8 || len(password) > 15 {
+		return ValidationError{Detail: "password must be 8-15 characters"}
+	}
+	if !passwordUpperPattern.MatchString(password) ||
+		!passwordLowerPattern.MatchString(password) ||
+		!passwordDigitPattern.MatchString(password) ||
+		!passwordSpecialPattern.MatchString(password) {
+		return ValidationError{Detail: "password must include an uppercase letter, a lowercase letter, a number, and a special character"}
+	}
+	return nil
 }
 
 func validateEmail(email string) error {
