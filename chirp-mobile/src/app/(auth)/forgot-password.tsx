@@ -10,7 +10,6 @@ import { useSessionStore } from "@/store/use-session-store";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
   const forgotPassword = useSessionStore((state) => state.forgotPassword);
@@ -18,7 +17,6 @@ export default function ForgotPassword() {
   const submit = async () => {
     try {
       await forgotPassword(email.trim());
-      setSent(true);
       router.replace("/reset-password");
     } catch {
       // Error text already lives in the store.
@@ -58,11 +56,6 @@ export default function ForgotPassword() {
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
             </View>
-            {sent ? (
-              <Typography.Paragraph color="muted">
-                If that Email belongs to a verified User, the code was sent.
-              </Typography.Paragraph>
-            ) : null}
             {error ? (
               <Typography.Paragraph className="text-danger">
                 {error}

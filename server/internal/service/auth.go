@@ -445,16 +445,9 @@ func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username st
 	if holder.Username != "" {
 		return AuthResult{}, ErrUsernameAlreadySet
 	}
-	if existing, err := s.repository.GetUserByUsername(ctx, username); err == nil {
-		if existing.ID != userID {
-			return AuthResult{}, ErrUsernameTaken
-		}
-	} else if !errors.Is(err, repository.ErrAuthNotFound) {
-		return AuthResult{}, err
-	}
-	updated, err := s.repository.UpdateUsername(ctx, userID, username)
+	updated, err := s.assignUsername(ctx, userID, username)
 	if err != nil {
-		return AuthResult{}, mapTaken(err)
+		return AuthResult{}, err
 	}
 	result, _, err := s.issueSession(ctx, updated, "")
 	return result, err
@@ -511,9 +504,10 @@ func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, 
 	return identity, nil
 }
 
-// ForgotPassword issues a reset challenge for a verified Email. Unknown or
-// unverified addresses get the same neutral answer without a challenge, so
-// accounts cannot be enumerated through this endpoint.
+// ForgotPassword issues a reset challenge for a verified Email. Unknown,
+// unverified, and rate-limited addresses all get the same neutral answer
+// without a challenge, so accounts cannot be enumerated through this
+// endpoint (at the cost of hiding "try again later" from legitimate users).
 func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil || !user.EmailVerified {
@@ -525,7 +519,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 
 	if pending, err := s.repository.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeResetPassword); err == nil {
 		if s.currentTime().Sub(pending.CreatedAt) < VerificationResendCooldown {
-			return ErrResendTooSoon
+			return nil
 		}
 		_ = s.repository.ConsumeVerificationChallenge(ctx, pending.ID)
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
@@ -537,7 +531,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return err
 	}
 	if recent >= VerificationMaxChallengesPerHour {
-		return ErrResendLimit
+		return nil
 	}
 
 	_, err = s.issuePurposeChallenge(ctx, user.ID, ChallengePurposeResetPassword)
@@ -699,15 +693,7 @@ func (s *AuthService) checkChallenge(ctx context.Context, userID, purpose, code 
 }
 
 func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string, error) {
-	code, hash, err := auth.NewVerificationCode()
-	if err != nil {
-		return "", err
-	}
-	_, err = s.repository.CreateVerificationChallenge(ctx, userID, ChallengePurposeVerifyEmail, hash, s.currentTime().Add(VerificationCodeTTL))
-	if err != nil {
-		return "", err
-	}
-	return code, nil
+	return s.issuePurposeChallenge(ctx, userID, ChallengePurposeVerifyEmail)
 }
 
 func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser, deviceLabel string) (AuthResult, string, error) {

@@ -388,13 +388,16 @@ export const useSessionStore = create<SessionState>((set, get) => {
         new_password: newPassword,
       });
       set({ isBusy: false });
+      // A reset revokes every session, including this device's: sign in
+      // again with the new password.
+      await get().dropToGuest();
     },
 
     changeUsername: async (username) => {
       const { accessToken } = get();
       if (!accessToken) {
         set({ error: "You are not signed in." });
-        return;
+        throw new Error("You are not signed in.");
       }
       set({ isBusy: true, error: null });
       try {
@@ -405,6 +408,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
         });
         set({ user, isBusy: false });
         await persist();
+        // Renew so the access claims carry the new Username immediately.
+        await get()
+          .refreshTokens()
+          .catch(() => false);
       } catch (error) {
         set({ error: messageOf(error), isBusy: false });
         throw error;
@@ -412,10 +419,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     addPassword: async (newPassword) => {
-      const { accessToken, user } = get();
+      const { accessToken } = get();
       if (!accessToken) {
         set({ error: "You are not signed in." });
-        return;
+        throw new Error("You are not signed in.");
       }
       set({ isBusy: true, error: null });
       try {
@@ -424,12 +431,11 @@ export const useSessionStore = create<SessionState>((set, get) => {
           body: { new_password: newPassword },
           accessToken,
         });
-        if (user) {
-          set({ user: { ...user, hasPassword: true }, isBusy: false });
-          await persist();
-        } else {
-          set({ isBusy: false });
-        }
+        const user = await apiFetch<SessionUser>("/auth/me", {
+          accessToken,
+        });
+        set({ user, isBusy: false });
+        await persist();
       } catch (error) {
         set({ error: messageOf(error), isBusy: false });
         throw error;
