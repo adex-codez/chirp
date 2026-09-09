@@ -47,7 +47,17 @@ type Session struct {
 	ReplacedBy string
 }
 
-// AuthRepository owns User, challenge, and session persistence.
+// LinkedIdentity is a provider identity attached to a User: which provider
+// and which subject, plus the address seen at link time.
+type LinkedIdentity struct {
+	ID          string
+	UserID      string
+	Provider    string
+	ProviderSub string
+	Email       string
+}
+
+// AuthRepository owns User, challenge, session, and linked-identity persistence.
 type AuthRepository interface {
 	CreateUser(ctx context.Context, username, email, passwordHash string) (AuthUser, error)
 	GetUserByEmail(ctx context.Context, email string) (AuthUser, error)
@@ -64,6 +74,9 @@ type AuthRepository interface {
 	ReplaceSession(ctx context.Context, id, replacedBy string) error
 	RevokeSession(ctx context.Context, id string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
+	GetIdentity(ctx context.Context, provider, providerSub string) (LinkedIdentity, error)
+	CreateIdentity(ctx context.Context, userID, provider, providerSub, email string) (LinkedIdentity, error)
+	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
 }
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
@@ -82,7 +95,7 @@ func (r *PostgresAuthRepository) CreateUser(ctx context.Context, username, email
 		hash = pgtype.Text{String: passwordHash, Valid: true}
 	}
 	row, err := r.queries.CreateUser(ctx, database.CreateUserParams{
-		Username:     username,
+		Column1:      username,
 		Email:        email,
 		PasswordHash: hash,
 	})
@@ -275,6 +288,65 @@ func (r *PostgresAuthRepository) RevokeAllUserSessions(ctx context.Context, user
 		return err
 	}
 	return r.queries.RevokeAllUserSessions(ctx, key)
+}
+
+func (r *PostgresAuthRepository) GetIdentity(ctx context.Context, provider, providerSub string) (LinkedIdentity, error) {
+	row, err := r.queries.GetIdentity(ctx, database.GetIdentityParams{
+		Provider:    provider,
+		ProviderSub: providerSub,
+	})
+	if err != nil {
+		return LinkedIdentity{}, mapNoRows(err)
+	}
+	return LinkedIdentity{
+		ID:          row.ID,
+		UserID:      row.UserID,
+		Provider:    row.Provider,
+		ProviderSub: row.ProviderSub,
+		Email:       row.Email.String,
+	}, nil
+}
+
+func (r *PostgresAuthRepository) CreateIdentity(ctx context.Context, userID, provider, providerSub, email string) (LinkedIdentity, error) {
+	key, err := parseUUID(userID)
+	if err != nil {
+		return LinkedIdentity{}, err
+	}
+	mail := pgtype.Text{Valid: false}
+	if email != "" {
+		mail = pgtype.Text{String: email, Valid: true}
+	}
+	row, err := r.queries.CreateIdentity(ctx, database.CreateIdentityParams{
+		Column1:     key,
+		Provider:    provider,
+		ProviderSub: providerSub,
+		Email:       mail,
+	})
+	if err != nil {
+		return LinkedIdentity{}, err
+	}
+	return LinkedIdentity{
+		ID:          row.ID,
+		UserID:      row.UserID,
+		Provider:    row.Provider,
+		ProviderSub: row.ProviderSub,
+		Email:       row.Email.String,
+	}, nil
+}
+
+func (r *PostgresAuthRepository) UpdateUsername(ctx context.Context, id, username string) (AuthUser, error) {
+	key, err := parseUUID(id)
+	if err != nil {
+		return AuthUser{}, err
+	}
+	row, err := r.queries.UpdateUsername(ctx, database.UpdateUsernameParams{
+		Column1:  key,
+		Username: pgtype.Text{String: username, Valid: true},
+	})
+	if err != nil {
+		return AuthUser{}, mapNoRows(err)
+	}
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
 }
 
 func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz) AuthUser {

@@ -7,6 +7,7 @@ import { ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSessionStore } from "@/store/use-session-store";
+import { SocialButtons } from "@/components/social-buttons";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -83,6 +84,7 @@ export default function SignIn() {
             <Button onPress={submit} isDisabled={isBusy}>
               {isBusy ? "Signing in…" : "Sign in"}
             </Button>
+            <SocialButtons />
             <Link href="/sign-up" asChild>
               <Button variant="outline">Sign up instead</Button>
             </Link>

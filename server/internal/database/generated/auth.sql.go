@@ -41,6 +41,45 @@ func (q *Queries) CountRecentVerificationChallenges(ctx context.Context, arg Cou
 	return count, err
 }
 
+const createIdentity = `-- name: CreateIdentity :one
+INSERT INTO linked_identities (user_id, provider, provider_sub, email)
+VALUES ($1::uuid, $2, $3, $4)
+RETURNING id::text AS id, user_id::text AS user_id, provider, provider_sub, email
+`
+
+type CreateIdentityParams struct {
+	Column1     pgtype.UUID `json:"column_1"`
+	Provider    string      `json:"provider"`
+	ProviderSub string      `json:"provider_sub"`
+	Email       pgtype.Text `json:"email"`
+}
+
+type CreateIdentityRow struct {
+	ID          string      `json:"id"`
+	UserID      string      `json:"user_id"`
+	Provider    string      `json:"provider"`
+	ProviderSub string      `json:"provider_sub"`
+	Email       pgtype.Text `json:"email"`
+}
+
+func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) (CreateIdentityRow, error) {
+	row := q.db.QueryRow(ctx, createIdentity,
+		arg.Column1,
+		arg.Provider,
+		arg.ProviderSub,
+		arg.Email,
+	)
+	var i CreateIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.ProviderSub,
+		&i.Email,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, refresh_hash, expires_at, device_label)
 VALUES ($1::uuid, $2, $3, $4)
@@ -84,12 +123,12 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (C
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (username, email, password_hash)
-VALUES ($1, $2, $3)
-RETURNING id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+VALUES (NULLIF($1::text, ''), $2, $3)
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Username     string      `json:"username"`
+	Column1      string      `json:"column_1"`
 	Email        string      `json:"email"`
 	PasswordHash pgtype.Text `json:"password_hash"`
 }
@@ -105,7 +144,7 @@ type CreateUserRow struct {
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Username, arg.Email, arg.PasswordHash)
+	row := q.db.QueryRow(ctx, createUser, arg.Column1, arg.Email, arg.PasswordHash)
 	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
@@ -160,6 +199,39 @@ func (q *Queries) CreateVerificationChallenge(ctx context.Context, arg CreateVer
 		&i.Attempts,
 		&i.ConsumedAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getIdentity = `-- name: GetIdentity :one
+SELECT id::text AS id, user_id::text AS user_id, provider, provider_sub, email
+FROM linked_identities
+WHERE provider = $1 AND provider_sub = $2
+LIMIT 1
+`
+
+type GetIdentityParams struct {
+	Provider    string `json:"provider"`
+	ProviderSub string `json:"provider_sub"`
+}
+
+type GetIdentityRow struct {
+	ID          string      `json:"id"`
+	UserID      string      `json:"user_id"`
+	Provider    string      `json:"provider"`
+	ProviderSub string      `json:"provider_sub"`
+	Email       pgtype.Text `json:"email"`
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetIdentityRow, error) {
+	row := q.db.QueryRow(ctx, getIdentity, arg.Provider, arg.ProviderSub)
+	var i GetIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.ProviderSub,
+		&i.Email,
 	)
 	return i, err
 }
@@ -237,7 +309,7 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE lower(email) = lower($1)
 LIMIT 1
@@ -269,7 +341,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEm
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE id = $1::uuid
 `
@@ -300,7 +372,7 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 pgtype.UUID) (GetUse
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE lower(username) = lower($1)
 LIMIT 1
@@ -389,4 +461,41 @@ WHERE id = $1::uuid AND revoked_at IS NULL
 func (q *Queries) RevokeSession(ctx context.Context, dollar_1 pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeSession, dollar_1)
 	return err
+}
+
+const updateUsername = `-- name: UpdateUsername :one
+UPDATE users
+SET username = $2, updated_at = now()
+WHERE id = $1::uuid
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+`
+
+type UpdateUsernameParams struct {
+	Column1  pgtype.UUID `json:"column_1"`
+	Username pgtype.Text `json:"username"`
+}
+
+type UpdateUsernameRow struct {
+	ID              string             `json:"id"`
+	Username        string             `json:"username"`
+	Email           string             `json:"email"`
+	PasswordHash    pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (UpdateUsernameRow, error) {
+	row := q.db.QueryRow(ctx, updateUsername, arg.Column1, arg.Username)
+	var i UpdateUsernameRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerifiedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

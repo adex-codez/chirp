@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -27,12 +28,15 @@ type DatabaseConfig struct {
 	URL string
 }
 
-// AuthConfig carries the signing secret for access tokens. DevExposeCodes
-// returns verification codes in API responses outside release builds, until
-// a transactional mail sender exists.
+// AuthConfig carries the signing secret for access tokens, the audiences
+// accepted for Social sign-in tokens, and the dev code exposure flag.
+// DevExposeCodes returns verification codes in API responses outside release
+// builds, until a transactional mail sender exists.
 type AuthConfig struct {
-	JWTSecret      string
-	DevExposeCodes bool
+	JWTSecret        string
+	DevExposeCodes   bool
+	AppleAudience    string
+	GoogleAudiences  []string
 }
 
 const (
@@ -92,6 +96,16 @@ func (c ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
+func splitList(raw string) []string {
+	var out []string
+	for _, item := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 func loadAuthConfig(mode string) (AuthConfig, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -102,7 +116,9 @@ func loadAuthConfig(mode string) (AuthConfig, error) {
 		secret = "dev-only-change-me"
 	}
 	return AuthConfig{
-		JWTSecret:      secret,
-		DevExposeCodes: mode != "release",
+		JWTSecret:       secret,
+		DevExposeCodes:  mode != "release",
+		AppleAudience:   os.Getenv("APPLE_AUDIENCE"),
+		GoogleAudiences: splitList(os.Getenv("GOOGLE_AUDIENCES")),
 	}, nil
 }

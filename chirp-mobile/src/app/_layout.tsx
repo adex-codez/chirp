@@ -18,11 +18,13 @@ export default function RootLayout() {
     void restore();
   }, [restore]);
 
-  // Pending Users have no Username yet, so they belong on the
-  // verification screen rather than anywhere else in the sign-in group.
+  // Pending Users have unfinished setup, so they belong on their setup
+  // screen rather than anywhere else in the sign-in group.
   useEffect(() => {
     if (status === "pending-verification" && segments[0] !== "verify") {
       router.replace("/verify");
+    } else if (status === "needs-username" && segments[0] !== "choose-username") {
+      router.replace("/choose-username");
     }
   }, [status, segments]);
 

@@ -17,13 +17,25 @@ var (
 )
 
 type accessClaims struct {
-	Subject  string `json:"sub"`
-	Username string `json:"username"`
-	Expiry   int64  `json:"exp"`
-	IssuedAt int64  `json:"iat"`
+	Subject  string     `json:"sub"`
+	Username string     `json:"username"`
+	Scope    TokenScope `json:"scope"`
+	Expiry   int64      `json:"exp"`
+	IssuedAt int64      `json:"iat"`
 }
 
-func SignAccessToken(secret, userID, username string, ttl time.Duration, now time.Time) (string, error) {
+// TokenScope separates full sessions from the limited pending grant issued
+// to social joins that still need a Username.
+type TokenScope string
+
+const (
+	// ScopeFull authorizes everything the User can do.
+	ScopeFull TokenScope = "full"
+	// ScopeUsernameSetup authorizes only setting the Username.
+	ScopeUsernameSetup TokenScope = "username_setup"
+)
+
+func SignAccessToken(secret, userID, username string, scope TokenScope, ttl time.Duration, now time.Time) (string, error) {
 	header, err := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
 	if err != nil {
 		return "", err
@@ -31,6 +43,7 @@ func SignAccessToken(secret, userID, username string, ttl time.Duration, now tim
 	payload, err := json.Marshal(accessClaims{
 		Subject:  userID,
 		Username: username,
+		Scope:    scope,
 		Expiry:   now.Add(ttl).Unix(),
 		IssuedAt: now.Unix(),
 	})
@@ -43,45 +56,54 @@ func SignAccessToken(secret, userID, username string, ttl time.Duration, now tim
 	return unsigned + "." + base64.RawURLEncoding.EncodeToString(signature), nil
 }
 
-func VerifyAccessToken(secret, token string, now time.Time) (userID, username string, err error) {
+// SignPendingToken issues the limited grant for a social join without a
+// Username: short-lived and scoped to setting it.
+func SignPendingToken(secret, userID string, ttl time.Duration, now time.Time) (string, error) {
+	return SignAccessToken(secret, userID, "", ScopeUsernameSetup, ttl, now)
+}
+
+func VerifyAccessToken(secret, token string, now time.Time) (userID, username string, scope TokenScope, err error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 
 	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 	var header map[string]string
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 	if header["alg"] != "HS256" {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 
 	expected := hmacSHA256(secret, parts[0]+"."+parts[1])
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || !hmac.Equal(signature, expected) {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 
 	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 	var claims accessClaims
 	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 	if claims.Subject == "" {
-		return "", "", ErrInvalidToken
+		return "", "", "", ErrInvalidToken
 	}
 	if now.Unix() >= claims.Expiry {
-		return "", "", ErrExpiredToken
+		return "", "", "", ErrExpiredToken
 	}
-	return claims.Subject, claims.Username, nil
+	if claims.Scope == "" {
+		claims.Scope = ScopeFull
+	}
+	return claims.Subject, claims.Username, claims.Scope, nil
 }
 
 func hmacSHA256(secret, message string) []byte {

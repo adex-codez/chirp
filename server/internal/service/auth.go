@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"backend/internal/auth"
+	"backend/internal/config"
 	"backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -18,6 +19,8 @@ const (
 	AccessTokenTTL = 15 * time.Minute
 	// RefreshTokenTTL matches ADR-0002: 30-day rotating refresh.
 	RefreshTokenTTL = 30 * 24 * time.Hour
+	// PendingTokenTTL bounds the Username-setup grant.
+	PendingTokenTTL = 30 * time.Minute
 	// VerificationCodeTTL bounds how long a code stays usable.
 	VerificationCodeTTL = 20 * time.Minute
 	// VerificationMaxAttempts caps guesses before the challenge locks.
@@ -32,20 +35,24 @@ const (
 const ChallengePurposeVerifyEmail = "verify_email"
 
 var (
-	ErrValidation       = errors.New("validation failed")
-	ErrUsernameTaken    = errors.New("username is already taken")
-	ErrEmailTaken       = errors.New("email is already in use")
-	ErrInvalidSignIn    = errors.New("invalid email or password")
-	ErrInvalidSession   = errors.New("invalid or expired session")
-	ErrEmailNotVerified = errors.New("email is not verified")
-	ErrInvalidChallenge = errors.New("invalid or expired code")
-	ErrChallengeLocked  = errors.New("too many attempts, request a new code")
-	ErrNoPendingVerify  = errors.New("no pending verification for this email")
-	ErrAlreadyVerified  = errors.New("email is already verified")
-	ErrResendTooSoon    = errors.New("verification code was just sent")
-	ErrResendLimit      = errors.New("too many codes requested, try again later")
-	ErrUserNotFound     = errors.New("user not found")
-	ErrSessionRevoked   = errors.New("session was revoked, sign in again")
+	ErrValidation          = errors.New("validation failed")
+	ErrUsernameTaken       = errors.New("username is already taken")
+	ErrEmailTaken          = errors.New("email is already in use")
+	ErrInvalidSignIn       = errors.New("invalid email or password")
+	ErrInvalidSession      = errors.New("invalid or expired session")
+	ErrEmailNotVerified    = errors.New("email is not verified")
+	ErrInvalidChallenge    = errors.New("invalid or expired code")
+	ErrChallengeLocked     = errors.New("too many attempts, request a new code")
+	ErrNoPendingVerify     = errors.New("no pending verification for this email")
+	ErrAlreadyVerified     = errors.New("email is already verified")
+	ErrResendTooSoon       = errors.New("verification code was just sent")
+	ErrResendLimit         = errors.New("too many codes requested, try again later")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrSessionRevoked      = errors.New("session was revoked, sign in again")
+	ErrSocialMisconfigured = errors.New("social sign-in is not configured")
+	ErrSocialNoEmail       = errors.New("no email address came with this social sign-in")
+	ErrSocialUnverified    = errors.New("this email is not verified by the provider")
+	ErrSocialConflict      = errors.New("an account with this email already exists, sign in with your password first")
 )
 
 // ValidationError carries the field-level detail behind ErrValidation so the
@@ -59,6 +66,14 @@ func (e ValidationError) Error() string { return "validation failed: " + e.Detai
 func (e ValidationError) Is(target error) bool { return target == ErrValidation }
 
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]{3,20}$`)
+
+func validateUsername(username string) error {
+	username = strings.TrimSpace(username)
+	if !usernamePattern.MatchString(username) {
+		return ValidationError{Detail: "username must be 3-20 characters of letters, numbers, underscore, or dot"}
+	}
+	return nil
+}
 
 var (
 	passwordUpperPattern   = regexp.MustCompile(`[A-Z]`)
@@ -92,22 +107,26 @@ type SignUpResult struct {
 }
 
 // AuthService contains the application behavior for joining, verifying,
-// and signing in with Password sign-in.
+// signing in, and Social sign-in.
 type AuthService struct {
-	repository     repository.AuthRepository
-	jwtSecret      string
-	devExposeCodes bool
-	now            func() time.Time
+	repository      repository.AuthRepository
+	jwtSecret       string
+	devExposeCodes  bool
+	appleAudience   string
+	googleAudiences []string
+	now             func() time.Time
 }
 
 // NewAuthService wires the service. now is nil in production (uses time.Now)
 // and overridden in tests.
-func NewAuthService(repo repository.AuthRepository, jwtSecret string, devExposeCodes bool) *AuthService {
+func NewAuthService(repo repository.AuthRepository, authCfg config.AuthConfig) *AuthService {
 	return &AuthService{
-		repository:     repo,
-		jwtSecret:      jwtSecret,
-		devExposeCodes: devExposeCodes,
-		now:            nil,
+		repository:      repo,
+		jwtSecret:       authCfg.JWTSecret,
+		devExposeCodes:  authCfg.DevExposeCodes,
+		appleAudience:   authCfg.AppleAudience,
+		googleAudiences: authCfg.GoogleAudiences,
+		now:             nil,
 	}
 }
 
@@ -123,8 +142,8 @@ func (s *AuthService) currentTime() time.Time {
 func (s *AuthService) SignUp(ctx context.Context, username, email, password, deviceLabel string) (SignUpResult, error) {
 	username = strings.TrimSpace(username)
 	email = strings.TrimSpace(email)
-	if !usernamePattern.MatchString(username) {
-		return SignUpResult{}, ValidationError{Detail: "username must be 3-20 characters of letters, numbers, underscore, or dot"}
+	if err := validateUsername(username); err != nil {
+		return SignUpResult{}, err
 	}
 	if err := validateEmail(email); err != nil {
 		return SignUpResult{}, err
@@ -343,10 +362,142 @@ func (s *AuthService) SignOutAll(ctx context.Context, accessToken string) error 
 	return s.repository.RevokeAllUserSessions(ctx, user.ID)
 }
 
-// Profile reads the current User from a presented access token.
-func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUser, error) {
-	userID, _, err := auth.VerifyAccessToken(s.jwtSecret, accessToken, s.currentTime())
+// SocialResult answers a Social sign-in: either a full session, or a pending
+// grant that authorizes only picking the Username.
+type SocialResult struct {
+	User         PublicUser `json:"user"`
+	Pending      bool       `json:"pending"`
+	PendingToken string     `json:"pending_token,omitempty"`
+	Session      AuthResult `json:"session,omitempty"`
+}
+
+// SocialSignIn verifies a provider identity token server-side and signs the
+// User in: known provider subjects sign straight in, verified social Emails
+// matching an existing User link to it, and first-time joins receive a
+// pending grant for the Username picker.
+func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce, deviceLabel string) (SocialResult, error) {
+	identity, err := s.verifySocialToken(ctx, provider, idToken, nonce)
 	if err != nil {
+		return SocialResult{}, err
+	}
+	if identity.Email == "" {
+		return SocialResult{}, ErrSocialNoEmail
+	}
+	if !identity.EmailVerified {
+		if _, err := s.repository.GetUserByEmail(ctx, identity.Email); err == nil {
+			return SocialResult{}, ErrSocialConflict
+		} else if !errors.Is(err, repository.ErrAuthNotFound) {
+			return SocialResult{}, err
+		}
+		return SocialResult{}, ErrSocialUnverified
+	}
+
+	if link, err := s.repository.GetIdentity(ctx, identity.Provider, identity.Subject); err == nil {
+		return s.socialSession(ctx, link.UserID, deviceLabel)
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return SocialResult{}, err
+	}
+
+	if user, err := s.repository.GetUserByEmail(ctx, identity.Email); err == nil {
+		if _, err := s.repository.CreateIdentity(ctx, user.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
+			return SocialResult{}, err
+		}
+		return s.socialSession(ctx, user.ID, deviceLabel)
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return SocialResult{}, err
+	}
+
+	created, err := s.repository.CreateUser(ctx, "", identity.Email, "")
+	if err != nil {
+		return SocialResult{}, mapTaken(err)
+	}
+	if _, err := s.repository.CreateIdentity(ctx, created.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
+		return SocialResult{}, err
+	}
+	pending, err := auth.SignPendingToken(s.jwtSecret, created.ID, PendingTokenTTL, s.currentTime())
+	if err != nil {
+		return SocialResult{}, err
+	}
+	return SocialResult{
+		User:         publicUser(created),
+		Pending:      true,
+		PendingToken: pending,
+	}, nil
+}
+
+// SetUsername picks the Username for a social join holding a pending grant,
+// then signs the User in with a full session.
+func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username string) (AuthResult, error) {
+	userID, _, scope, err := auth.VerifyAccessToken(s.jwtSecret, pendingToken, s.currentTime())
+	if err != nil || scope != auth.ScopeUsernameSetup {
+		return AuthResult{}, ErrInvalidSession
+	}
+	if err := validateUsername(username); err != nil {
+		return AuthResult{}, err
+	}
+	username = strings.TrimSpace(username)
+	if existing, err := s.repository.GetUserByUsername(ctx, username); err == nil {
+		if existing.ID != userID {
+			return AuthResult{}, ErrUsernameTaken
+		}
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return AuthResult{}, err
+	}
+	updated, err := s.repository.UpdateUsername(ctx, userID, username)
+	if err != nil {
+		return AuthResult{}, mapTaken(err)
+	}
+	return s.issueSession(ctx, updated, "")
+}
+
+func (s *AuthService) socialSession(ctx context.Context, userID, deviceLabel string) (SocialResult, error) {
+	user, err := s.repository.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return SocialResult{}, ErrUserNotFound
+		}
+		return SocialResult{}, err
+	}
+	if user.Username == "" {
+		pending, err := auth.SignPendingToken(s.jwtSecret, user.ID, PendingTokenTTL, s.currentTime())
+		if err != nil {
+			return SocialResult{}, err
+		}
+		return SocialResult{User: publicUser(user), Pending: true, PendingToken: pending}, nil
+	}
+	session, _, err := s.issueSession(ctx, user, deviceLabel)
+	if err != nil {
+		return SocialResult{}, err
+	}
+	return SocialResult{User: publicUser(user), Session: session}, nil
+}
+
+func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, nonce string) (auth.SocialIdentity, error) {
+	now := s.currentTime()
+	switch provider {
+	case auth.ProviderApple:
+		if s.appleAudience == "" {
+			return auth.SocialIdentity{}, ErrSocialMisconfigured
+		}
+		return auth.VerifyAppleIDToken(ctx, now, idToken, s.appleAudience, nonce)
+	case auth.ProviderGoogle:
+		if len(s.googleAudiences) == 0 {
+			return auth.SocialIdentity{}, ErrSocialMisconfigured
+		}
+		return auth.VerifyGoogleIDToken(ctx, now, idToken, s.googleAudiences)
+	default:
+		return auth.SocialIdentity{}, ValidationError{Detail: "provider must be apple or google"}
+	}
+}
+
+// Profile reads the current User from a presented access token. Pending
+// grants are rejected: they authorize only setting the Username.
+func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUser, error) {
+	userID, _, scope, err := auth.VerifyAccessToken(s.jwtSecret, accessToken, s.currentTime())
+	if err != nil {
+		return PublicUser{}, ErrInvalidSession
+	}
+	if scope != auth.ScopeFull {
 		return PublicUser{}, ErrInvalidSession
 	}
 	user, err := s.repository.GetUserByID(ctx, userID)
@@ -373,7 +524,7 @@ func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string
 
 func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser, deviceLabel string) (AuthResult, string, error) {
 	now := s.currentTime()
-	access, err := auth.SignAccessToken(s.jwtSecret, user.ID, user.Username, AccessTokenTTL, now)
+	access, err := auth.SignAccessToken(s.jwtSecret, user.ID, user.Username, auth.ScopeFull, AccessTokenTTL, now)
 	if err != nil {
 		return AuthResult{}, "", err
 	}
