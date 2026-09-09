@@ -61,6 +61,9 @@ export default function Index() {
           <Card.Footer className="flex-col items-stretch gap-3">
             {sessionStatus === "authenticated" ? (
               <>
+                <Link href="/settings" asChild>
+                  <Button>Settings</Button>
+                </Link>
                 <Button variant="outline" onPress={() => void signOut()}>
                   Sign out
                 </Button>

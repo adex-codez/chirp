@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -7,23 +7,19 @@ import { ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSessionStore } from "@/store/use-session-store";
-import { SocialButtons } from "@/components/social-buttons";
 
-export default function SignIn() {
+export default function ResetPassword() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
-  const signIn = useSessionStore((state) => state.signIn);
-  const status = useSessionStore((state) => state.status);
+  const resetPassword = useSessionStore((state) => state.resetPassword);
 
-  // Transitions are owned by the route guards: success flips the session
-  // to authenticated and the protected group takes over; unverified
-  // sign-ins park at pending-verification and the root layout sends them
-  // to verify. Errors surface from the store.
   const submit = async () => {
     try {
-      await signIn(email.trim(), password);
+      await resetPassword(email.trim(), code.trim(), newPassword);
+      router.replace("/sign-in");
     } catch {
       // Error text already lives in the store.
     }
@@ -37,9 +33,14 @@ export default function SignIn() {
       >
         <View className="gap-2">
           <Typography type="body-xs" weight="bold" className="text-accent">
-            WELCOME BACK
+            NEW SECRET
           </Typography>
-          <Typography.Heading type="h1">Sign in to Chirp.</Typography.Heading>
+          <Typography.Heading type="h1">Choose a password.</Typography.Heading>
+          <Typography.Paragraph color="muted">
+            8–15 characters with an uppercase letter, a lowercase letter, a
+            number, and a special character. Resetting signs every device
+            out.
+          </Typography.Paragraph>
         </View>
 
         <Card variant="secondary">
@@ -53,19 +54,35 @@ export default function SignIn() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                editable={!isBusy}
                 placeholder="you@example.com"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
             </View>
             <View className="gap-1">
               <Typography type="body-sm" weight="bold">
-                Password
+                Code
               </Typography>
               <TextInput
-                value={password}
-                onChangeText={setPassword}
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                maxLength={6}
+                editable={!isBusy}
+                placeholder="123456"
+                className="rounded-lg border border-separator px-3 py-2 text-foreground"
+              />
+            </View>
+            <View className="gap-1">
+              <Typography type="body-sm" weight="bold">
+                New password
+              </Typography>
+              <TextInput
+                value={newPassword}
+                onChangeText={setNewPassword}
                 secureTextEntry
-                placeholder="Your password"
+                editable={!isBusy}
+                placeholder="8-15 chars, upper, lower, number & symbol"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
             </View>
@@ -74,22 +91,13 @@ export default function SignIn() {
                 {error}
               </Typography.Paragraph>
             ) : null}
-            {status === "pending-verification" ? (
-              <Typography.Paragraph color="muted">
-                That Email is not verified yet — check your inbox for the code.
-              </Typography.Paragraph>
-            ) : null}
           </Card.Body>
           <Card.Footer className="flex-col items-stretch gap-3">
             <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Signing in…" : "Sign in"}
+              {isBusy ? "Resetting…" : "Reset password"}
             </Button>
-            <SocialButtons />
-            <Link href="/forgot-password" asChild>
-              <Button variant="outline">Forgot password?</Button>
-            </Link>
-            <Link href="/sign-up" asChild>
-              <Button variant="outline">Sign up instead</Button>
+            <Link href="/sign-in" asChild>
+              <Button variant="outline">Back to sign in</Button>
             </Link>
           </Card.Footer>
         </Card>

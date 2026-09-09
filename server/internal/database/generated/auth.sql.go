@@ -463,6 +463,22 @@ func (q *Queries) RevokeSession(ctx context.Context, dollar_1 pgtype.UUID) error
 	return err
 }
 
+const updatePassword = `-- name: UpdatePassword :exec
+UPDATE users
+SET password_hash = $2, updated_at = now()
+WHERE id = $1::uuid
+`
+
+type UpdatePasswordParams struct {
+	Column1      pgtype.UUID `json:"column_1"`
+	PasswordHash pgtype.Text `json:"password_hash"`
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
+	_, err := q.db.Exec(ctx, updatePassword, arg.Column1, arg.PasswordHash)
+	return err
+}
+
 const updateUsername = `-- name: UpdateUsername :one
 UPDATE users
 SET username = $2, updated_at = now()

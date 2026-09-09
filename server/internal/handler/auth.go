@@ -22,6 +22,10 @@ type authService interface {
 	SignOutAll(ctx context.Context, accessToken string) error
 	SocialSignIn(ctx context.Context, provider, idToken, nonce, deviceLabel string) (service.SocialResult, error)
 	SetUsername(ctx context.Context, pendingToken, username string) (service.AuthResult, error)
+	ForgotPassword(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, email, code, password string) error
+	AddPassword(ctx context.Context, accessToken, password string) error
+	ChangeUsername(ctx context.Context, accessToken, username string) (service.PublicUser, error)
 }
 
 // AuthHandler is the HTTP transport for Password sign-in joins, verification,
@@ -76,6 +80,24 @@ type socialRequest struct {
 }
 
 type setUsernameRequest struct {
+	Username string `json:"username" binding:"required"`
+}
+
+type forgotPasswordRequest struct {
+	Email string `json:"email" binding:"required"`
+}
+
+type resetPasswordRequest struct {
+	Email       string `json:"email" binding:"required"`
+	Code        string `json:"code" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
+}
+
+type addPasswordRequest struct {
+	NewPassword string `json:"new_password" binding:"required"`
+}
+
+type changeUsernameRequest struct {
 	Username string `json:"username" binding:"required"`
 }
 
@@ -242,6 +264,75 @@ func (h *AuthHandler) SetUsername(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// ForgotPassword handles POST /auth/password/forgot. It always answers
+// success so addresses cannot be enumerated; only verified Emails get a
+// challenge.
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req forgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "email is required")
+		return
+	}
+	if err := h.service.ForgotPassword(c.Request.Context(), req.Email); err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"reset_sent": true})
+}
+
+// ResetPassword handles POST /auth/password/reset.
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req resetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "email, code, and a new password are required")
+		return
+	}
+	if err := h.service.ResetPassword(c.Request.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"password_reset": true})
+}
+
+// AddPassword handles POST /auth/password for signed-in Users without one.
+func (h *AuthHandler) AddPassword(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		return
+	}
+	var req addPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "a new password is required")
+		return
+	}
+	if err := h.service.AddPassword(c.Request.Context(), token, req.NewPassword); err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, gin.H{"password_added": true})
+}
+
+// ChangeUsername handles POST /auth/username/change for signed-in Users.
+func (h *AuthHandler) ChangeUsername(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		return
+	}
+	var req changeUsernameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "username is required")
+		return
+	}
+	user, err := h.service.ChangeUsername(c.Request.Context(), token, req.Username)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, user)
+}
+
 func bearerToken(header string) (string, bool) {
 	token, found := strings.CutPrefix(header, "Bearer ")
 	if !found || strings.TrimSpace(token) == "" {
@@ -292,6 +383,8 @@ func writeAuthError(c *gin.Context, err error) {
 		response.Error(c, http.StatusBadGateway, "could not verify social token")
 	case errors.Is(err, service.ErrUsernameAlreadySet):
 		response.Error(c, http.StatusConflict, "username is already set")
+	case errors.Is(err, service.ErrPasswordAlreadySet):
+		response.Error(c, http.StatusConflict, "password is already set, use reset instead")
 	case errors.Is(err, service.ErrValidation):
 		response.Error(c, http.StatusBadRequest, validationMessage(err))
 	default:

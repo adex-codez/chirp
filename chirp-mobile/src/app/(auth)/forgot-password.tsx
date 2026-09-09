@@ -1,4 +1,4 @@
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -7,23 +7,17 @@ import { ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSessionStore } from "@/store/use-session-store";
-import { SocialButtons } from "@/components/social-buttons";
 
-export default function SignIn() {
+export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
-  const signIn = useSessionStore((state) => state.signIn);
-  const status = useSessionStore((state) => state.status);
+  const forgotPassword = useSessionStore((state) => state.forgotPassword);
 
-  // Transitions are owned by the route guards: success flips the session
-  // to authenticated and the protected group takes over; unverified
-  // sign-ins park at pending-verification and the root layout sends them
-  // to verify. Errors surface from the store.
   const submit = async () => {
     try {
-      await signIn(email.trim(), password);
+      await forgotPassword(email.trim());
+      router.replace("/reset-password");
     } catch {
       // Error text already lives in the store.
     }
@@ -37,9 +31,13 @@ export default function SignIn() {
       >
         <View className="gap-2">
           <Typography type="body-xs" weight="bold" className="text-accent">
-            WELCOME BACK
+            RECOVER ACCESS
           </Typography>
-          <Typography.Heading type="h1">Sign in to Chirp.</Typography.Heading>
+          <Typography.Heading type="h1">Reset your password.</Typography.Heading>
+          <Typography.Paragraph color="muted">
+            Enter the Email of your User. If it exists and is verified, a
+            code is on its way — otherwise this reveals nothing.
+          </Typography.Paragraph>
         </View>
 
         <Card variant="secondary">
@@ -53,19 +51,8 @@ export default function SignIn() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                editable={!isBusy}
                 placeholder="you@example.com"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Password
-              </Typography>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="Your password"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
             </View>
@@ -74,22 +61,13 @@ export default function SignIn() {
                 {error}
               </Typography.Paragraph>
             ) : null}
-            {status === "pending-verification" ? (
-              <Typography.Paragraph color="muted">
-                That Email is not verified yet — check your inbox for the code.
-              </Typography.Paragraph>
-            ) : null}
           </Card.Body>
           <Card.Footer className="flex-col items-stretch gap-3">
             <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Signing in…" : "Sign in"}
+              {isBusy ? "Sending…" : "Send reset code"}
             </Button>
-            <SocialButtons />
-            <Link href="/forgot-password" asChild>
-              <Button variant="outline">Forgot password?</Button>
-            </Link>
-            <Link href="/sign-up" asChild>
-              <Button variant="outline">Sign up instead</Button>
+            <Link href="/sign-in" asChild>
+              <Button variant="outline">Back to sign in</Button>
             </Link>
           </Card.Footer>
         </Card>

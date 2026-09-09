@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"backend/internal/database"
+	"backend/internal/database/generated"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,6 +77,7 @@ type AuthRepository interface {
 	GetIdentity(ctx context.Context, provider, providerSub string) (LinkedIdentity, error)
 	CreateIdentity(ctx context.Context, userID, provider, providerSub, email string) (LinkedIdentity, error)
 	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
+	UpdatePassword(ctx context.Context, id, passwordHash string) error
 }
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
@@ -255,7 +256,7 @@ func (r *PostgresAuthRepository) GetSessionByRefreshHash(ctx context.Context, re
 		UserID:     row.UserID,
 		ExpiresAt:  row.ExpiresAt.Time,
 		Revoked:    row.RevokedAt.Valid,
-		ReplacedBy: row.ReplacedBy,
+		ReplacedBy: replacedByString(row.ReplacedBy),
 	}, nil
 }
 
@@ -349,6 +350,17 @@ func (r *PostgresAuthRepository) UpdateUsername(ctx context.Context, id, usernam
 	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
 }
 
+func (r *PostgresAuthRepository) UpdatePassword(ctx context.Context, id, passwordHash string) error {
+	key, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	return r.queries.UpdatePassword(ctx, database.UpdatePasswordParams{
+		Column1:      key,
+		PasswordHash: pgtype.Text{String: passwordHash, Valid: true},
+	})
+}
+
 func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz) AuthUser {
 	return AuthUser{
 		ID:            id,
@@ -373,4 +385,18 @@ func mapNoRows(err error) error {
 		return ErrAuthNotFound
 	}
 	return err
+}
+
+// replacedByString decodes the replaced_by text column, which sqlc types as
+// interface{} since the text cast hides the concrete type from it. The pgx
+// driver returns it as a string.
+func replacedByString(v interface{}) string {
+	switch s := v.(type) {
+	case string:
+		return s
+	case []byte:
+		return string(s)
+	default:
+		return ""
+	}
 }

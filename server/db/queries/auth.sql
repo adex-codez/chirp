@@ -74,6 +74,11 @@ SET username = $2, updated_at = now()
 WHERE id = $1::uuid
 RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at;
 
+-- name: UpdatePassword :exec
+UPDATE users
+SET password_hash = $2, updated_at = now()
+WHERE id = $1::uuid;
+
 -- name: GetSessionByRefreshHash :one
 SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at
 FROM sessions
