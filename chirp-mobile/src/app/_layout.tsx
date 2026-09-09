@@ -9,12 +9,7 @@ import { useSessionStore } from "@/store/use-session-store";
 
 void SplashScreen.preventAutoHideAsync();
 
-// Leaf names of the public sign-in group. (Expo strips the `(auth)` group
-// from segments, so the guard matches leaves. Extend when the group gains
-// screens such as the social Username picker.)
-const AUTH_SEGMENTS = new Set(["sign-in", "sign-up", "verify"]);
-
-function RouteGuard() {
+export default function RootLayout() {
   const status = useSessionStore((state) => state.status);
   const restore = useSessionStore((state) => state.restore);
   const segments = useSegments();
@@ -23,16 +18,11 @@ function RouteGuard() {
     void restore();
   }, [restore]);
 
+  // Pending Users have no Username yet, so they belong on the
+  // verification screen rather than anywhere else in the sign-in group.
   useEffect(() => {
-    if (status === "restoring") return;
-    const first = segments[0];
-    const inAuthGroup = first !== undefined && AUTH_SEGMENTS.has(first);
-    if (status === "authenticated" && inAuthGroup) {
-      router.replace("/");
-    } else if (status === "pending-verification" && !inAuthGroup) {
+    if (status === "pending-verification" && segments[0] !== "verify") {
       router.replace("/verify");
-    } else if (status === "guest" && !inAuthGroup) {
-      router.replace("/sign-in");
     }
   }, [status, segments]);
 
@@ -42,14 +32,23 @@ function RouteGuard() {
     }
   }, [status]);
 
-  return <Stack />;
-}
+  // Hold the splash until the session is restored: with no group
+  // accessible yet, there is nothing to render.
+  if (status === "restoring") {
+    return null;
+  }
 
-export default function RootLayout() {
   return (
     <AppProvider>
       <StatusBar style="dark" />
-      <RouteGuard />
+      <Stack>
+        <Stack.Protected guard={status !== "authenticated"}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === "authenticated"}>
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
+      </Stack>
     </AppProvider>
   );
 }

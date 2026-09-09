@@ -1,4 +1,3 @@
-import { router } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -16,10 +15,11 @@ export default function Verify() {
   const verify = useSessionStore((state) => state.verify);
   const resendCode = useSessionStore((state) => state.resendCode);
 
+  // Success flips the session to authenticated and the protected group
+  // takes over automatically.
   const submit = async () => {
     try {
       await verify(code.trim());
-      router.replace("/");
     } catch {
       // Error text already lives in the store.
     }

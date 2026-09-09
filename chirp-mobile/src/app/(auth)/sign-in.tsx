@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -16,16 +16,15 @@ export default function SignIn() {
   const signIn = useSessionStore((state) => state.signIn);
   const status = useSessionStore((state) => state.status);
 
+  // Transitions are owned by the route guards: success flips the session
+  // to authenticated and the protected group takes over; unverified
+  // sign-ins park at pending-verification and the root layout sends them
+  // to verify. Errors surface from the store.
   const submit = async () => {
     try {
       await signIn(email.trim(), password);
-      const next = useSessionStore.getState().status;
-      router.replace(next === "pending-verification" ? "/verify" : "/");
     } catch {
-      // Error text already lives in the store; unverified users land on verify.
-      if (useSessionStore.getState().status === "pending-verification") {
-        router.replace("/verify");
-      }
+      // Error text already lives in the store.
     }
   };
 

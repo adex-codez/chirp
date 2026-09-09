@@ -1,4 +1,4 @@
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -16,10 +16,10 @@ export default function SignUp() {
   const isBusy = useSessionStore((state) => state.isBusy);
   const signUp = useSessionStore((state) => state.signUp);
 
+  // The root layout sends pending-verification Users to verify.
   const submit = async () => {
     try {
       await signUp(username.trim(), email.trim(), password);
-      router.replace("/verify");
     } catch {
       // Error text already lives in the store.
     }
