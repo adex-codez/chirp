@@ -56,28 +56,31 @@ export async function apiGet<T>(path: string, accessToken: string): Promise<T> {
 
 type AuthHooks = {
   getAccessToken: () => string | null;
-  getRefreshToken: () => string | null;
-  refreshAccessToken: () => Promise<string | null>;
+  /**
+   * Renews the pair. Resolves null on definitive rejection (caller drops the
+   * session); rejects on transient failure (caller keeps the session).
+   */
+  performRefresh: () => Promise<string | null>;
   onAuthFailed: () => void;
 };
 
 let hooks: AuthHooks | null = null;
-// Single in-flight refresh: concurrent calls queue behind one renewal.
+// Single in-flight refresh: every renewal path funnels through this gate,
+// so concurrent calls queue behind one renewal.
 let refreshPromise: Promise<string | null> | null = null;
 
 /** Wired once by the session store; keeps this module free of store imports. */
 export function configureAuth(next: AuthHooks): void {
   hooks = next;
+  refreshPromise = null;
 }
 
-function singleFlightRefresh(): Promise<string | null> {
+export function singleFlightRefresh(): Promise<string | null> {
   if (!hooks) return Promise.resolve(null);
   if (!refreshPromise) {
-    refreshPromise = hooks
-      .refreshAccessToken()
-      .finally(() => {
-        refreshPromise = null;
-      });
+    refreshPromise = hooks.performRefresh().finally(() => {
+      refreshPromise = null;
+    });
   }
   return refreshPromise;
 }

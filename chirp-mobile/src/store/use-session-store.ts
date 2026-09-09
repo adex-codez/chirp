@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { apiGet, apiPost, configureAuth } from "@/lib/api";
+import { ApiError, apiGet, apiPost, configureAuth, singleFlightRefresh } from "@/lib/api";
 import {
   clearSession,
   loadSession,
@@ -180,8 +180,23 @@ export const useSessionStore = create<SessionState>((set, get) => {
           pendingEmail: null,
         });
       } catch {
-        const renewed = await get().refreshTokens();
-        if (!renewed) {
+        try {
+          if (await get().refreshTokens()) return;
+          return; // Definitive rejection already dropped to guest.
+        } catch {
+          // Transient failure (offline): trust the saved tokens only while
+          // access is unexpired and a User is present; the interceptor
+          // retries once connectivity returns.
+          if (saved.user && !accessExpiringSoon(saved.accessToken)) {
+            set({
+              status: "authenticated",
+              user: saved.user,
+              accessToken: saved.accessToken,
+              refreshToken: saved.refreshToken,
+              pendingEmail: null,
+            });
+            return;
+          }
           await get().dropToGuest();
         }
       }
@@ -246,18 +261,16 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     refreshTokens: async () => {
-      const { refreshToken } = get();
-      if (!refreshToken) return false;
-      try {
-        const data = await apiPost<AuthResponse>("/auth/refresh", {
-          refresh_token: refreshToken,
-        });
-        await applySession(data);
-        return true;
-      } catch {
+      // Every renewal funnels through the single-flight gate, so restore()
+      // and concurrent apiAuth retries never mint two refreshes at once.
+      // Definitive rejection drops to guest here; transient failures throw
+      // and the session is kept.
+      const access = await singleFlightRefresh();
+      if (!access) {
         await get().dropToGuest();
         return false;
       }
+      return true;
     },
 
     signOut: async () => {
@@ -273,13 +286,21 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     signOutEverywhere: async () => {
-      const { accessToken } = get();
-      if (accessToken) {
-        try {
-          await apiPost("/auth/logout-all", {}, accessToken);
-        } catch {
-          // Best effort: the local session is dropped regardless.
+      try {
+        // Renew first so an expired access token does not silently void the
+        // revocation while the local session is dropped.
+        let token = get().accessToken;
+        if (token && accessExpiringSoon(token)) {
+          await get()
+            .refreshTokens()
+            .catch(() => false);
+          token = get().accessToken;
         }
+        if (token) {
+          await apiPost("/auth/logout-all", {}, token);
+        }
+      } catch {
+        // Best effort: the local session is dropped regardless.
       }
       await get().dropToGuest();
     },
@@ -303,10 +324,39 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
 configureAuth({
   getAccessToken: () => useSessionStore.getState().accessToken,
-  getRefreshToken: () => useSessionStore.getState().refreshToken,
-  refreshAccessToken: async () => {
-    const renewed = await useSessionStore.getState().refreshTokens();
-    return renewed ? useSessionStore.getState().accessToken : null;
+  performRefresh: async () => {
+    const { refreshToken } = useSessionStore.getState();
+    if (!refreshToken) return null;
+    try {
+      const data = await apiPost<AuthResponse>("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      useSessionStore.setState({
+        status: "authenticated",
+        user: data.user,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        pendingEmail: null,
+        isBusy: false,
+      });
+      const applied = useSessionStore.getState();
+      await saveSession({
+        user: applied.user,
+        accessToken: applied.accessToken,
+        refreshToken: applied.refreshToken,
+        pendingEmail: applied.pendingEmail,
+      });
+      return data.access_token;
+    } catch (error) {
+      // Definitive rejection ends the session; transient failure keeps it.
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return null;
+      }
+      throw error;
+    }
   },
   onAuthFailed: () => {
     void useSessionStore.getState().dropToGuest();
