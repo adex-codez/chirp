@@ -1,22 +1,22 @@
 -- name: CreateUser :one
 INSERT INTO users (username, email, password_hash)
-VALUES ($1, $2, $3)
-RETURNING id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at;
+VALUES (NULLIF($1::text, ''), $2, $3)
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at;
 
 -- name: GetUserByEmail :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE lower(email) = lower($1)
 LIMIT 1;
 
 -- name: GetUserByUsername :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE lower(username) = lower($1)
 LIMIT 1;
 
 -- name: GetUserByID :one
-SELECT id::text AS id, username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
 FROM users
 WHERE id = $1::uuid;
 
@@ -56,6 +56,23 @@ WHERE user_id = $1::uuid AND purpose = $2 AND created_at > $3;
 INSERT INTO sessions (user_id, refresh_hash, expires_at, device_label)
 VALUES ($1::uuid, $2, $3, $4)
 RETURNING id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, created_at;
+
+-- name: GetIdentity :one
+SELECT id::text AS id, user_id::text AS user_id, provider, provider_sub, email
+FROM linked_identities
+WHERE provider = $1 AND provider_sub = $2
+LIMIT 1;
+
+-- name: CreateIdentity :one
+INSERT INTO linked_identities (user_id, provider, provider_sub, email)
+VALUES ($1::uuid, $2, $3, $4)
+RETURNING id::text AS id, user_id::text AS user_id, provider, provider_sub, email;
+
+-- name: UpdateUsername :one
+UPDATE users
+SET username = $2, updated_at = now()
+WHERE id = $1::uuid
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at;
 
 -- name: GetSessionByRefreshHash :one
 SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at

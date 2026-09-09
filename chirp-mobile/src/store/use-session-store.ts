@@ -30,10 +30,20 @@ type SignUpResponse = {
   dev_verification_code?: string;
 };
 
+type SocialResponse = {
+  user: SessionUser;
+  pending: boolean;
+  pending_token?: string;
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+};
+
 type SessionStatus =
   | "restoring"
   | "guest"
   | "pending-verification"
+  | "needs-username"
   | "authenticated";
 
 type SessionState = {
@@ -42,6 +52,7 @@ type SessionState = {
   accessToken: string | null;
   refreshToken: string | null;
   pendingEmail: string | null;
+  pendingToken: string | null;
   error: string | null;
   isBusy: boolean;
   restore: () => Promise<void>;
@@ -49,6 +60,13 @@ type SessionState = {
   verify: (code: string) => Promise<void>;
   resendCode: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  socialSignIn: (
+    provider: "apple" | "google",
+    idToken: string,
+    nonce?: string,
+  ) => Promise<void>;
+  setUsername: (username: string) => Promise<void>;
+  cancelUsernamePick: () => Promise<void>;
   refreshTokens: () => Promise<boolean>;
   signOut: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
@@ -72,6 +90,7 @@ type StoreSetter = (
       | "accessToken"
       | "refreshToken"
       | "pendingEmail"
+      | "pendingToken"
     >
   >,
 ) => void;
@@ -130,8 +149,15 @@ function accessExpiringSoon(token: string, marginMs = 60_000): boolean {
 
 export const useSessionStore = create<SessionState>((set, get) => {
   const persist = () => {
-    const { user, accessToken, refreshToken, pendingEmail } = get();
-    return saveSession({ user, accessToken, refreshToken, pendingEmail });
+    const { user, accessToken, refreshToken, pendingEmail, pendingToken } =
+      get();
+    return saveSession({
+      user,
+      accessToken,
+      refreshToken,
+      pendingEmail,
+      pendingToken,
+    });
   };
 
   const applySession = (data: AuthResponse) => {
@@ -141,6 +167,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       pendingEmail: null,
+      pendingToken: null,
       isBusy: false,
     });
     return persist();
@@ -152,16 +179,31 @@ export const useSessionStore = create<SessionState>((set, get) => {
     accessToken: null,
     refreshToken: null,
     pendingEmail: null,
+    pendingToken: null,
     error: null,
     isBusy: false,
 
     restore: async () => {
       const saved = await loadSession();
       if (!saved?.refreshToken || !saved.accessToken) {
+        // A pending Username grant survives restarts while it is unexpired.
+        if (
+          saved?.pendingToken &&
+          saved.user &&
+          !accessExpiringSoon(saved.pendingToken)
+        ) {
+          set({
+            status: "needs-username",
+            user: saved.user,
+            pendingToken: saved.pendingToken,
+          });
+          return;
+        }
         set({
           status: saved?.pendingEmail ? "pending-verification" : "guest",
           user: saved?.user ?? null,
           pendingEmail: saved?.pendingEmail ?? null,
+          pendingToken: null,
         });
         return;
       }
@@ -214,6 +256,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         status: "pending-verification",
         user: data.user,
         pendingEmail: data.user.email,
+        pendingToken: null,
         isBusy: false,
       });
       await persist();
@@ -260,6 +303,61 @@ export const useSessionStore = create<SessionState>((set, get) => {
         throw error;
       }
       await applySession(data);
+    },
+
+    socialSignIn: async (provider, idToken, nonce) => {
+      let data: SocialResponse;
+      try {
+        data = await runRequest<SocialResponse>(set, "/auth/social", {
+          provider,
+          id_token: idToken,
+          ...(nonce ? { nonce } : {}),
+        });
+      } catch (error) {
+        const message = messageOf(error);
+        set({ error: message, isBusy: false });
+        throw error;
+      }
+      if (data.pending && data.pending_token) {
+        set({
+          status: "needs-username",
+          user: data.user,
+          accessToken: null,
+          refreshToken: null,
+          pendingEmail: null,
+          pendingToken: data.pending_token,
+          isBusy: false,
+        });
+        await persist();
+        return;
+      }
+      await applySession(data as AuthResponse);
+    },
+
+    setUsername: async (username) => {
+      const { pendingToken } = get();
+      if (!pendingToken) {
+        set({ error: "Start with Apple or Google sign-in first." });
+        return;
+      }
+      set({ isBusy: true, error: null });
+      try {
+        const data = await apiFetch<AuthResponse>("/auth/username", {
+          method: "POST",
+          body: { username },
+          accessToken: pendingToken,
+        });
+        await applySession(data);
+      } catch (error) {
+        set({ error: messageOf(error), isBusy: false });
+        throw error;
+      }
+    },
+
+    cancelUsernamePick: async () => {
+      // The pending grant is simply discarded; the server row stays
+      // Username-less until its owner returns through Social sign-in.
+      await get().dropToGuest();
     },
 
     refreshTokens: async () => {
@@ -322,6 +420,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         accessToken: null,
         refreshToken: null,
         pendingEmail: null,
+        pendingToken: null,
         error: null,
         isBusy: false,
       });
@@ -355,6 +454,7 @@ configureAuth({
         accessToken: applied.accessToken,
         refreshToken: applied.refreshToken,
         pendingEmail: applied.pendingEmail,
+        pendingToken: applied.pendingToken,
       });
       return data.access_token;
     } catch (error) {

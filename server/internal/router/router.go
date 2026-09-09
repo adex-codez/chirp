@@ -24,13 +24,21 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig)
 	router.GET("/health", health.Live)
 	router.GET("/ready", health.Ready)
 
-	authService := service.NewAuthService(repository.NewAuthRepository(pool), authCfg.JWTSecret, authCfg.DevExposeCodes)
+	authService := service.NewAuthService(
+		repository.NewAuthRepository(pool),
+		authCfg.JWTSecret,
+		authCfg.DevExposeCodes,
+		authCfg.AppleAudience,
+		authCfg.GoogleAudiences,
+	)
 	auth := handler.NewAuthHandler(authService)
 	authGroup := router.Group("/auth")
 	authGroup.POST("/signup", auth.SignUp)
 	authGroup.POST("/verify", auth.Verify)
 	authGroup.POST("/verify/resend", auth.Resend)
 	authGroup.POST("/login", auth.SignIn)
+	authGroup.POST("/social", auth.SocialSignIn)
+	authGroup.POST("/username", auth.SetUsername)
 	authGroup.POST("/refresh", auth.Refresh)
 	authGroup.POST("/logout", auth.SignOut)
 	authGroup.POST("/logout-all", auth.SignOutAll)

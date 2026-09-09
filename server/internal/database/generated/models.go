@@ -8,6 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type LinkedIdentity struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Provider    string             `json:"provider"`
+	ProviderSub string             `json:"provider_sub"`
+	Email       pgtype.Text        `json:"email"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Session struct {
 	ID          pgtype.UUID        `json:"id"`
 	UserID      pgtype.UUID        `json:"user_id"`
@@ -21,7 +30,7 @@ type Session struct {
 
 type User struct {
 	ID              pgtype.UUID        `json:"id"`
-	Username        string             `json:"username"`
+	Username        pgtype.Text        `json:"username"`
 	Email           string             `json:"email"`
 	PasswordHash    pgtype.Text        `json:"password_hash"`
 	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`

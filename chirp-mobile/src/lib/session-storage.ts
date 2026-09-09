@@ -9,6 +9,7 @@ export type PersistedSession = {
   accessToken: string | null;
   refreshToken: string | null;
   pendingEmail: string | null;
+  pendingToken: string | null;
 };
 
 /**

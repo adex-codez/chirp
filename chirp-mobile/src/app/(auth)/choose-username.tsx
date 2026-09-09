@@ -1,4 +1,3 @@
-import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -7,22 +6,22 @@ import { ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSessionStore } from "@/store/use-session-store";
-import { SocialButtons } from "@/components/social-buttons";
 
-export default function SignUp() {
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export default function ChooseUsername() {
+  const [draft, setDraft] = useState("");
+  const user = useSessionStore((state) => state.user);
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
-  const signUp = useSessionStore((state) => state.signUp);
+  const setUsername = useSessionStore((state) => state.setUsername);
+  const cancelUsernamePick = useSessionStore(
+    (state) => state.cancelUsernamePick,
+  );
 
-  // The root layout sends pending-verification Users to verify.
   const submit = async () => {
     try {
-      await signUp(username.trim(), email.trim(), password);
+      await setUsername(draft.trim());
     } catch {
-      // Error text already lives in the store.
+      // Error text (taken handle, bad shape) already lives in the store.
     }
   };
 
@@ -34,12 +33,13 @@ export default function SignUp() {
       >
         <View className="gap-2">
           <Typography type="body-xs" weight="bold" className="text-accent">
-            JOIN CHIRP
+            ALMOST THERE
           </Typography>
           <Typography.Heading type="h1">Pick your Username.</Typography.Heading>
           <Typography.Paragraph color="muted">
-            Your Username is unique and public. We verify your Email before you
-            can use the app.
+            {user
+              ? `Signed in as ${user.email}. Your Username is unique and public — nothing else unlocks until it is set.`
+              : "Your Username is unique and public — nothing else unlocks until it is set."}
           </Typography.Paragraph>
         </View>
 
@@ -50,37 +50,16 @@ export default function SignUp() {
                 Username
               </Typography>
               <TextInput
-                value={username}
-                onChangeText={setUsername}
+                value={draft}
+                onChangeText={setDraft}
                 autoCapitalize="none"
+                editable={!isBusy}
                 placeholder="e.g. river_song"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Email
-              </Typography>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Password
-              </Typography>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="8-15 chars, upper, lower, number & symbol"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
+              <Typography.Paragraph color="muted">
+                3–20 characters: letters, numbers, underscore, dot.
+              </Typography.Paragraph>
             </View>
             {error ? (
               <Typography.Paragraph className="text-danger">
@@ -90,12 +69,15 @@ export default function SignUp() {
           </Card.Body>
           <Card.Footer className="flex-col items-stretch gap-3">
             <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Creating…" : "Sign up"}
+              {isBusy ? "Saving…" : "Save Username"}
             </Button>
-            <SocialButtons />
-            <Link href="/sign-in" asChild>
-              <Button variant="outline">Back to sign in</Button>
-            </Link>
+            <Button
+              variant="outline"
+              onPress={() => void cancelUsernamePick()}
+              isDisabled={isBusy}
+            >
+              Cancel and sign out
+            </Button>
           </Card.Footer>
         </Card>
       </ScrollView>

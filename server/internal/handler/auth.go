@@ -20,6 +20,8 @@ type authService interface {
 	Refresh(ctx context.Context, refreshToken, deviceLabel string) (service.AuthResult, error)
 	SignOut(ctx context.Context, refreshToken string) error
 	SignOutAll(ctx context.Context, accessToken string) error
+	SocialSignIn(ctx context.Context, provider, idToken, nonce, deviceLabel string) (service.SocialResult, error)
+	SetUsername(ctx context.Context, pendingToken, username string) (service.AuthResult, error)
 }
 
 // AuthHandler is the HTTP transport for Password sign-in joins, verification,
@@ -64,6 +66,17 @@ type refreshRequest struct {
 
 type signOutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type socialRequest struct {
+	Provider    string `json:"provider" binding:"required"`
+	IDToken     string `json:"id_token" binding:"required"`
+	Nonce       string `json:"nonce"`
+	DeviceLabel string `json:"device_label"`
+}
+
+type setUsernameRequest struct {
+	Username string `json:"username" binding:"required"`
 }
 
 // SignUp handles POST /auth/signup.
@@ -184,6 +197,51 @@ func (h *AuthHandler) SignOutAll(c *gin.Context) {
 	response.Success(c, gin.H{"signed_out_everywhere": true})
 }
 
+// SocialSignIn handles POST /auth/social. It answers either a full session
+// or a pending grant for the Username picker.
+func (h *AuthHandler) SocialSignIn(c *gin.Context) {
+	var req socialRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "provider and id token are required")
+		return
+	}
+	result, err := h.service.SocialSignIn(c.Request.Context(), req.Provider, req.IDToken, req.Nonce, req.DeviceLabel)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	if result.Pending {
+		response.Success(c, gin.H{
+			"user":          result.User,
+			"pending":       true,
+			"pending_token": result.PendingToken,
+		})
+		return
+	}
+	response.Success(c, result.Session)
+}
+
+// SetUsername handles POST /auth/username. Only a pending grant authorizes
+// it; full sessions manage the Username elsewhere.
+func (h *AuthHandler) SetUsername(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		return
+	}
+	var req setUsernameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "username is required")
+		return
+	}
+	result, err := h.service.SetUsername(c.Request.Context(), token, req.Username)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 func bearerToken(header string) (string, bool) {
 	token, found := strings.CutPrefix(header, "Bearer ")
 	if !found || strings.TrimSpace(token) == "" {
@@ -220,6 +278,20 @@ func writeAuthError(c *gin.Context, err error) {
 		response.Error(c, http.StatusTooManyRequests, "verification code was just sent, wait a minute")
 	case errors.Is(err, service.ErrResendLimit):
 		response.Error(c, http.StatusTooManyRequests, "too many codes requested, try again later")
+	case errors.Is(err, service.ErrSocialMisconfigured):
+		response.Error(c, http.StatusServiceUnavailable, "social sign-in is not configured")
+	case errors.Is(err, service.ErrSocialNoEmail):
+		response.Error(c, http.StatusBadRequest, "no Email came with this Social sign-in")
+	case errors.Is(err, service.ErrSocialUnverified):
+		response.Error(c, http.StatusForbidden, "this Email is not verified by the provider")
+	case errors.Is(err, service.ErrSocialConflict):
+		response.Error(c, http.StatusConflict, "a User with this Email already exists, sign in with your password first")
+	case errors.Is(err, service.ErrSocialTokenInvalid):
+		response.Error(c, http.StatusUnauthorized, "invalid social token")
+	case errors.Is(err, service.ErrSocialUnavailable):
+		response.Error(c, http.StatusBadGateway, "could not verify social token")
+	case errors.Is(err, service.ErrUsernameAlreadySet):
+		response.Error(c, http.StatusConflict, "username is already set")
 	case errors.Is(err, service.ErrValidation):
 		response.Error(c, http.StatusBadRequest, validationMessage(err))
 	default:
