@@ -77,7 +77,7 @@ export default function SignUp() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                placeholder="At least 8 characters"
+                placeholder="8-15 chars, upper, lower, number & symbol"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />
             </View>
