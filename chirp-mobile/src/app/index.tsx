@@ -1,3 +1,4 @@
+import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
@@ -5,6 +6,7 @@ import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAppStore } from "@/store/use-app-store";
+import { useSessionStore } from "@/store/use-session-store";
 
 export default function Index() {
   const isNotificationsEnabled = useAppStore(
@@ -13,6 +15,9 @@ export default function Index() {
   const toggleNotifications = useAppStore(
     (state) => state.toggleNotifications,
   );
+  const sessionStatus = useSessionStore((state) => state.status);
+  const sessionUser = useSessionStore((state) => state.user);
+  const signOut = useSessionStore((state) => state.signOut);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -32,6 +37,45 @@ export default function Index() {
             and TanStack Query is ready for server data.
           </Typography.Paragraph>
         </View>
+
+        <Card variant="secondary">
+          <Card.Body className="gap-3">
+            <Typography.Heading type="h3">Session</Typography.Heading>
+            {sessionStatus === "authenticated" && sessionUser ? (
+              <Typography.Paragraph color="muted">
+                Signed in as {sessionUser.username} ({sessionUser.email}).
+              </Typography.Paragraph>
+            ) : sessionStatus === "pending-verification" ? (
+              <Typography.Paragraph color="muted">
+                Your Email is not verified yet — enter the code to continue.
+              </Typography.Paragraph>
+            ) : (
+              <Typography.Paragraph color="muted">
+                You are not signed in yet. Sign in to use Chirp.
+              </Typography.Paragraph>
+            )}
+          </Card.Body>
+          <Card.Footer className="flex-col items-stretch gap-3">
+            {sessionStatus === "authenticated" ? (
+              <Button variant="outline" onPress={signOut}>
+                Sign out
+              </Button>
+            ) : sessionStatus === "pending-verification" ? (
+              <Link href="/verify" asChild>
+                <Button>Enter verification code</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/sign-in" asChild>
+                  <Button>Sign in</Button>
+                </Link>
+                <Link href="/sign-up" asChild>
+                  <Button variant="outline">Sign up</Button>
+                </Link>
+              </>
+            )}
+          </Card.Footer>
+        </Card>
 
         <Card variant="secondary">
           <Card.Body className="gap-3">

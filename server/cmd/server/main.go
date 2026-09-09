@@ -9,7 +9,6 @@ import (
 
 	"backend/internal/config"
 	"backend/internal/database"
-	"backend/internal/repository"
 	"backend/internal/router"
 	"backend/internal/server"
 )
@@ -40,8 +39,7 @@ func main() {
 	defer db.Close()
 	slog.Info("connected to database")
 
-	healthRepository := repository.NewHealthRepository(db)
-	routes, err := router.New(healthRepository, cfg.Server)
+	routes, err := router.New(db, cfg.Server, cfg.Auth)
 	if err != nil {
 		slog.Error("failed to create router", "error", err)
 		os.Exit(1)
