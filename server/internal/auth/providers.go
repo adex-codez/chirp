@@ -110,12 +110,15 @@ func VerifyAppleIDToken(ctx context.Context, now time.Time, token, audience, non
 	if nonce != "" && claims.Nonce != sha256Hex(nonce) {
 		return SocialIdentity{}, fmt.Errorf("nonce mismatch: %w", ErrSocialTokenInvalid)
 	}
+	// Apple only asserts addresses it vouches for, including relay ones. An
+	// explicitly negative claim is honored; an absent one means vouched.
+	verified := claims.Email != "" &&
+		(claims.EmailVerified == nil || bool(*claims.EmailVerified))
 	return SocialIdentity{
-		Provider: ProviderApple,
-		Subject:  claims.Subject,
-		Email:    claims.Email,
-		// Apple only asserts addresses it vouches for, including relay ones.
-		EmailVerified: claims.Email != "",
+		Provider:      ProviderApple,
+		Subject:       claims.Subject,
+		Email:         claims.Email,
+		EmailVerified: verified,
 	}, nil
 }
 
@@ -143,18 +146,36 @@ func VerifyGoogleIDToken(ctx context.Context, now time.Time, token string, audie
 		Provider:      ProviderGoogle,
 		Subject:       claims.Subject,
 		Email:         claims.Email,
-		EmailVerified: claims.EmailVerified && claims.Email != "",
+		EmailVerified: claims.Email != "" && claims.EmailVerified != nil && bool(*claims.EmailVerified),
 	}, nil
 }
 
 type tokenClaims struct {
-	Subject       string   `json:"sub"`
-	Email         string   `json:"email"`
-	EmailVerified bool     `json:"email_verified"`
-	Issuer        string   `json:"iss"`
-	Audiences     audience `json:"aud"`
-	Expiry        int64    `json:"exp"`
-	Nonce         string   `json:"nonce"`
+	Subject       string    `json:"sub"`
+	Email         string    `json:"email"`
+	EmailVerified *flexBool `json:"email_verified"`
+	Issuer        string    `json:"iss"`
+	Audiences     audience  `json:"aud"`
+	Expiry        int64     `json:"exp"`
+	Nonce         string    `json:"nonce"`
+}
+
+// flexBool accepts the claim as a boolean or a "true"/"false" string: Apple
+// encodes email_verified as a string, Google as a boolean.
+type flexBool bool
+
+func (b *flexBool) UnmarshalJSON(raw []byte) error {
+	var value bool
+	if err := json.Unmarshal(raw, &value); err == nil {
+		*b = flexBool(value)
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil {
+		return err
+	}
+	*b = flexBool(text == "true" || text == "1")
+	return nil
 }
 
 // audience accepts the claim as either a string or a string array.

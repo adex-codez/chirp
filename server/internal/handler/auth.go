@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"backend/internal/auth"
 	"backend/internal/response"
 	"backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -282,15 +281,17 @@ func writeAuthError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrSocialMisconfigured):
 		response.Error(c, http.StatusServiceUnavailable, "social sign-in is not configured")
 	case errors.Is(err, service.ErrSocialNoEmail):
-		response.Error(c, http.StatusBadRequest, "no email address came with this social sign-in")
+		response.Error(c, http.StatusBadRequest, "no Email came with this Social sign-in")
 	case errors.Is(err, service.ErrSocialUnverified):
-		response.Error(c, http.StatusForbidden, "this email is not verified by the provider")
+		response.Error(c, http.StatusForbidden, "this Email is not verified by the provider")
 	case errors.Is(err, service.ErrSocialConflict):
-		response.Error(c, http.StatusConflict, "an account with this email already exists, sign in with your password first")
-	case errors.Is(err, auth.ErrSocialTokenInvalid):
+		response.Error(c, http.StatusConflict, "a User with this Email already exists, sign in with your password first")
+	case errors.Is(err, service.ErrSocialTokenInvalid):
 		response.Error(c, http.StatusUnauthorized, "invalid social token")
-	case errors.Is(err, auth.ErrSocialUnavailable):
+	case errors.Is(err, service.ErrSocialUnavailable):
 		response.Error(c, http.StatusBadGateway, "could not verify social token")
+	case errors.Is(err, service.ErrUsernameAlreadySet):
+		response.Error(c, http.StatusConflict, "username is already set")
 	case errors.Is(err, service.ErrValidation):
 		response.Error(c, http.StatusBadRequest, validationMessage(err))
 	default:

@@ -106,6 +106,8 @@ export function SocialButtons() {
           }
           buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
           cornerRadius={8}
+          // One-off: 44pt is Apple's minimum touch target; the button is
+          // Apple's own control, so its geometry stays in platform terms.
           style={{ height: 44 }}
           onPress={() => void signInWithApple()}
         />

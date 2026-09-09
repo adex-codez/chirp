@@ -53,6 +53,7 @@ export default function ChooseUsername() {
                 value={draft}
                 onChangeText={setDraft}
                 autoCapitalize="none"
+                editable={!isBusy}
                 placeholder="e.g. river_song"
                 className="rounded-lg border border-separator px-3 py-2 text-foreground"
               />

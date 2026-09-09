@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"backend/internal/auth"
-	"backend/internal/config"
 	"backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -50,9 +49,12 @@ var (
 	ErrUserNotFound        = errors.New("user not found")
 	ErrSessionRevoked      = errors.New("session was revoked, sign in again")
 	ErrSocialMisconfigured = errors.New("social sign-in is not configured")
-	ErrSocialNoEmail       = errors.New("no email address came with this social sign-in")
-	ErrSocialUnverified    = errors.New("this email is not verified by the provider")
-	ErrSocialConflict      = errors.New("an account with this email already exists, sign in with your password first")
+	ErrSocialNoEmail       = errors.New("no Email came with this Social sign-in")
+	ErrSocialUnverified    = errors.New("this Email is not verified by the provider")
+	ErrSocialConflict      = errors.New("a User with this Email already exists, sign in with your password first")
+	ErrSocialTokenInvalid  = errors.New("invalid social token")
+	ErrSocialUnavailable   = errors.New("could not verify social token")
+	ErrUsernameAlreadySet  = errors.New("username is already set")
 )
 
 // ValidationError carries the field-level detail behind ErrValidation so the
@@ -117,15 +119,16 @@ type AuthService struct {
 	now             func() time.Time
 }
 
-// NewAuthService wires the service. now is nil in production (uses time.Now)
-// and overridden in tests.
-func NewAuthService(repo repository.AuthRepository, authCfg config.AuthConfig) *AuthService {
+// NewAuthService wires the service from plain values so the composition
+// point owns configuration. now is nil in production (uses time.Now) and
+// overridden in tests.
+func NewAuthService(repo repository.AuthRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string) *AuthService {
 	return &AuthService{
 		repository:      repo,
-		jwtSecret:       authCfg.JWTSecret,
-		devExposeCodes:  authCfg.DevExposeCodes,
-		appleAudience:   authCfg.AppleAudience,
-		googleAudiences: authCfg.GoogleAudiences,
+		jwtSecret:       jwtSecret,
+		devExposeCodes:  devExposeCodes,
+		appleAudience:   appleAudience,
+		googleAudiences: googleAudiences,
 		now:             nil,
 	}
 }
@@ -380,6 +383,15 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 	if err != nil {
 		return SocialResult{}, err
 	}
+
+	// Known provider subjects sign straight in, even when the provider
+	// omits the Email on repeat visits (Apple does after first consent).
+	if link, err := s.repository.GetIdentity(ctx, identity.Provider, identity.Subject); err == nil {
+		return s.socialSession(ctx, link.UserID, deviceLabel)
+	} else if !errors.Is(err, repository.ErrAuthNotFound) {
+		return SocialResult{}, err
+	}
+
 	if identity.Email == "" {
 		return SocialResult{}, ErrSocialNoEmail
 	}
@@ -392,13 +404,13 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 		return SocialResult{}, ErrSocialUnverified
 	}
 
-	if link, err := s.repository.GetIdentity(ctx, identity.Provider, identity.Subject); err == nil {
-		return s.socialSession(ctx, link.UserID, deviceLabel)
-	} else if !errors.Is(err, repository.ErrAuthNotFound) {
-		return SocialResult{}, err
-	}
-
 	if user, err := s.repository.GetUserByEmail(ctx, identity.Email); err == nil {
+		// Link only when the existing User already proved the Email too:
+		// otherwise a provider-verified address could take over an
+		// unverified Password sign-in account.
+		if !user.EmailVerified {
+			return SocialResult{}, ErrSocialConflict
+		}
 		if _, err := s.repository.CreateIdentity(ctx, user.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
 			return SocialResult{}, err
 		}
@@ -410,6 +422,13 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 	created, err := s.repository.CreateUser(ctx, "", identity.Email, "")
 	if err != nil {
 		return SocialResult{}, mapTaken(err)
+	}
+	if !created.EmailVerified {
+		// Provider-vouched addresses arrive verified.
+		if err := s.repository.MarkUserVerified(ctx, created.ID); err != nil {
+			return SocialResult{}, err
+		}
+		created.EmailVerified = true
 	}
 	if _, err := s.repository.CreateIdentity(ctx, created.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
 		return SocialResult{}, err
@@ -426,7 +445,8 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 }
 
 // SetUsername picks the Username for a social join holding a pending grant,
-// then signs the User in with a full session.
+// then signs the User in with a full session. The grant is one-shot in
+// effect: a User that already has a Username cannot pick again with it.
 func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username string) (AuthResult, error) {
 	userID, _, scope, err := auth.VerifyAccessToken(s.jwtSecret, pendingToken, s.currentTime())
 	if err != nil || scope != auth.ScopeUsernameSetup {
@@ -436,6 +456,16 @@ func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username st
 		return AuthResult{}, err
 	}
 	username = strings.TrimSpace(username)
+	holder, err := s.repository.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return AuthResult{}, ErrUserNotFound
+		}
+		return AuthResult{}, err
+	}
+	if holder.Username != "" {
+		return AuthResult{}, ErrUsernameAlreadySet
+	}
 	if existing, err := s.repository.GetUserByUsername(ctx, username); err == nil {
 		if existing.ID != userID {
 			return AuthResult{}, ErrUsernameTaken
@@ -474,20 +504,31 @@ func (s *AuthService) socialSession(ctx context.Context, userID, deviceLabel str
 
 func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, nonce string) (auth.SocialIdentity, error) {
 	now := s.currentTime()
+	var identity auth.SocialIdentity
+	var err error
 	switch provider {
 	case auth.ProviderApple:
 		if s.appleAudience == "" {
 			return auth.SocialIdentity{}, ErrSocialMisconfigured
 		}
-		return auth.VerifyAppleIDToken(ctx, now, idToken, s.appleAudience, nonce)
+		identity, err = auth.VerifyAppleIDToken(ctx, now, idToken, s.appleAudience, nonce)
 	case auth.ProviderGoogle:
 		if len(s.googleAudiences) == 0 {
 			return auth.SocialIdentity{}, ErrSocialMisconfigured
 		}
-		return auth.VerifyGoogleIDToken(ctx, now, idToken, s.googleAudiences)
+		identity, err = auth.VerifyGoogleIDToken(ctx, now, idToken, s.googleAudiences)
 	default:
 		return auth.SocialIdentity{}, ValidationError{Detail: "provider must be apple or google"}
 	}
+	if err != nil {
+		// Keep provider verification failures behind service sentinels so
+		// the transport never depends on the crypto layer.
+		if errors.Is(err, auth.ErrSocialUnavailable) {
+			return auth.SocialIdentity{}, ErrSocialUnavailable
+		}
+		return auth.SocialIdentity{}, ErrSocialTokenInvalid
+	}
+	return identity, nil
 }
 
 // Profile reads the current User from a presented access token. Pending
