@@ -477,7 +477,8 @@ func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username st
 	if err != nil {
 		return AuthResult{}, mapTaken(err)
 	}
-	return s.issueSession(ctx, updated, "")
+	result, _, err := s.issueSession(ctx, updated, "")
+	return result, err
 }
 
 func (s *AuthService) socialSession(ctx context.Context, userID, deviceLabel string) (SocialResult, error) {
