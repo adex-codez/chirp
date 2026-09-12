@@ -1,9 +1,9 @@
 import { Button } from "heroui-native/button";
-import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, View } from "react-native";
+import { AuthShell } from "@/components/auth-shell";
+import { FieldInput } from "@/components/field-input";
 
 import { useSessionStore } from "@/store/use-session-store";
 
@@ -15,8 +15,6 @@ export default function Verify() {
   const verify = useSessionStore((state) => state.verify);
   const resendCode = useSessionStore((state) => state.resendCode);
 
-  // Success flips the session to authenticated and the protected group
-  // takes over automatically.
   const submit = async () => {
     try {
       await verify(code.trim());
@@ -26,58 +24,38 @@ export default function Verify() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow gap-6 px-6 py-8"
-      >
-        <View className="gap-2">
-          <Typography type="body-xs" weight="bold" className="text-accent">
-            CHECK YOUR INBOX
-          </Typography>
-          <Typography.Heading type="h1">Enter the code.</Typography.Heading>
-          <Typography.Paragraph color="muted">
-            {pendingEmail
-              ? `We sent a 6-digit code to ${pendingEmail}. It expires in about 20 minutes.`
-              : "Sign up first, then enter the code we send you."}
-          </Typography.Paragraph>
+    <AuthShell
+      kicker="CHECK YOUR INBOX"
+      title="Listen for the code."
+      intro={
+        pendingEmail
+          ? `We sent a 6-digit code to ${pendingEmail}. It fades in about 20 minutes.`
+          : "Claim a Username first, then enter the code we send you."
+      }
+      step={2}
+    >
+      <ScrollView className="flex-1" contentContainerClassName="grow gap-5 pb-8">
+        <FieldInput
+          label="Code"
+          value={code}
+          onChangeText={setCode}
+          keyboardType="number-pad"
+          maxLength={6}
+          placeholder="123456"
+          hint="Six digits. Keep this screen open while you check your inbox."
+        />
+        {error ? (
+          <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
+        ) : null}
+        <View className="gap-3">
+          <Button onPress={submit} isDisabled={isBusy}>
+            {isBusy ? "Verifying…" : "Verify and continue"}
+          </Button>
+          <Button variant="outline" onPress={() => resendCode()} isDisabled={isBusy}>
+            Resend code
+          </Button>
         </View>
-
-        <Card variant="secondary">
-          <Card.Body className="gap-4">
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Code
-              </Typography>
-              <TextInput
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                maxLength={6}
-                placeholder="123456"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            {error ? (
-              <Typography.Paragraph className="text-danger">
-                {error}
-              </Typography.Paragraph>
-            ) : null}
-          </Card.Body>
-          <Card.Footer className="flex-col items-stretch gap-3">
-            <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Verifying…" : "Verify and continue"}
-            </Button>
-            <Button
-              variant="outline"
-              onPress={() => resendCode()}
-              isDisabled={isBusy}
-            >
-              Resend code
-            </Button>
-          </Card.Footer>
-        </Card>
       </ScrollView>
-    </SafeAreaView>
+    </AuthShell>
   );
 }

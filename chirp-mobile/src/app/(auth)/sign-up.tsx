@@ -1,13 +1,14 @@
 import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
-import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, View } from "react-native";
+import { AuthShell } from "@/components/auth-shell";
+import { FieldInput } from "@/components/field-input";
+import { Songline } from "@/components/songline";
+import { SocialButtons } from "@/components/social-buttons";
 
 import { useSessionStore } from "@/store/use-session-store";
-import { SocialButtons } from "@/components/social-buttons";
 
 export default function SignUp() {
   const [username, setUsername] = useState("");
@@ -17,7 +18,6 @@ export default function SignUp() {
   const isBusy = useSessionStore((state) => state.isBusy);
   const signUp = useSessionStore((state) => state.signUp);
 
-  // The root layout sends pending-verification Users to verify.
   const submit = async () => {
     try {
       await signUp(username.trim(), email.trim(), password);
@@ -27,78 +27,64 @@ export default function SignUp() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow gap-6 px-6 py-8"
-      >
-        <View className="gap-2">
-          <Typography type="body-xs" weight="bold" className="text-accent">
-            JOIN CHIRP
-          </Typography>
-          <Typography.Heading type="h1">Pick your Username.</Typography.Heading>
-          <Typography.Paragraph color="muted">
-            Your Username is unique and public. We verify your Email before you
-            can use the app.
-          </Typography.Paragraph>
+    <AuthShell
+      kicker="BANDING STATION"
+      title="Claim your call sign."
+      intro="Your Username is unique and public. We check your Email before anything else unlocks."
+      step={1}
+    >
+      <ScrollView className="flex-1" contentContainerClassName="grow gap-5 pb-8">
+        <View className="gap-4">
+          <FieldInput
+            label="Username"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            placeholder="e.g. river_song"
+            hint="3–20 characters: letters, numbers, underscore, dot."
+          />
+          <FieldInput
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="you@example.com"
+            hint="We send one code here. Nothing else happens until you enter it."
+          />
+          <FieldInput
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="8-15 chars, upper, lower, number & symbol"
+          />
+          {error ? (
+            <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
+          ) : null}
         </View>
 
-        <Card variant="secondary">
-          <Card.Body className="gap-4">
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Username
-              </Typography>
-              <TextInput
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-                placeholder="e.g. river_song"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Email
-              </Typography>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Password
-              </Typography>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="8-15 chars, upper, lower, number & symbol"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            {error ? (
-              <Typography.Paragraph className="text-danger">
-                {error}
-              </Typography.Paragraph>
-            ) : null}
-          </Card.Body>
-          <Card.Footer className="flex-col items-stretch gap-3">
-            <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Creating…" : "Sign up"}
-            </Button>
-            <SocialButtons />
-            <Link href="/sign-in" asChild>
-              <Button variant="outline">Back to sign in</Button>
-            </Link>
-          </Card.Footer>
-        </Card>
+        <Button onPress={submit} isDisabled={isBusy}>
+          {isBusy ? "Creating…" : "Claim and continue"}
+        </Button>
+
+        <View className="flex-row items-center gap-3">
+          <View className="h-px flex-1 bg-separator" />
+          <Songline height={20} levels={[10, 22, 14, 30, 18, 26, 12]} />
+          <View className="h-px flex-1 bg-separator" />
+        </View>
+
+        <SocialButtons />
+
+        <View className="flex-row items-center justify-center gap-1.5">
+          <Typography color="muted">Have an account?</Typography>
+          <Link href="/sign-in" asChild>
+            <Typography weight="bold" className="text-accent">
+              Sign in
+            </Typography>
+          </Link>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </AuthShell>
   );
 }

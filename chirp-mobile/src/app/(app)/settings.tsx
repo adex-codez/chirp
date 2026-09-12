@@ -2,8 +2,11 @@ import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, View } from "react-native";
+import { SafeAreaView } from "@/components/safe-area-view";
+import { BandChip } from "@/components/band-chip";
+import { FieldInput } from "@/components/field-input";
+import { fontStack } from "@/theme/typography";
 
 import { useSessionStore } from "@/store/use-session-store";
 
@@ -13,9 +16,7 @@ export default function Settings() {
   const isBusy = useSessionStore((state) => state.isBusy);
   const changeUsername = useSessionStore((state) => state.changeUsername);
   const addPassword = useSessionStore((state) => state.addPassword);
-  const signOutEverywhere = useSessionStore(
-    (state) => state.signOutEverywhere,
-  );
+  const signOutEverywhere = useSessionStore((state) => state.signOutEverywhere);
 
   const [username, setUsernameDraft] = useState(user?.username ?? "");
   const [newPassword, setNewPassword] = useState("");
@@ -44,38 +45,43 @@ export default function Settings() {
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow gap-6 px-6 py-8"
-      >
-        <View className="gap-2">
-          <Typography type="body-xs" weight="bold" className="text-accent">
-            YOUR USER
+      <ScrollView className="flex-1" contentContainerClassName="grow gap-6 px-6 py-8">
+        <View className="gap-3">
+          <Typography
+            style={{ fontFamily: fontStack.band, letterSpacing: 2 }}
+            type="body-xs"
+            weight="bold"
+            className="text-accent"
+          >
+            YOUR BAND
           </Typography>
-          <Typography.Heading type="h1">Settings.</Typography.Heading>
-          <Typography.Paragraph color="muted">
-            {user
-              ? `Signed in as ${user.username} (${user.email}).`
-              : "Manage this User."}
-          </Typography.Paragraph>
+          <Typography style={{ fontFamily: fontStack.display, fontStyle: "italic" }} type="h1">
+            Settings.
+          </Typography>
+          {user ? (
+            <BandChip username={user.username} verified />
+          ) : (
+            <Typography.Paragraph color="muted">Manage this User.</Typography.Paragraph>
+          )}
+          {user ? (
+            <Typography.Paragraph color="muted">
+              Signed in as {user.username} ({user.email}).
+            </Typography.Paragraph>
+          ) : null}
         </View>
 
         <Card variant="secondary">
           <Card.Body className="gap-4">
             <Typography.Heading type="h3">Username</Typography.Heading>
-            <View className="gap-1">
-              <TextInput
-                value={username}
-                onChangeText={setUsernameDraft}
-                autoCapitalize="none"
-                editable={!isBusy}
-                placeholder="e.g. river_song"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-              <Typography.Paragraph color="muted">
-                3–20 characters: letters, numbers, underscore, dot.
-              </Typography.Paragraph>
-            </View>
+            <FieldInput
+              label="Username"
+              value={username}
+              onChangeText={setUsernameDraft}
+              autoCapitalize="none"
+              editable={!isBusy}
+              placeholder="e.g. river_song"
+              hint="3–20 characters: letters, numbers, underscore, dot."
+            />
             <Button onPress={submitUsername} isDisabled={isBusy}>
               {isBusy ? "Saving…" : "Save Username"}
             </Button>
@@ -87,19 +93,17 @@ export default function Settings() {
             <Card.Body className="gap-4">
               <Typography.Heading type="h3">Add password</Typography.Heading>
               <Typography.Paragraph color="muted">
-                This User joined with Social sign-in and has no password
-                yet. Adding one unlocks Password sign-in too.
+                This User joined with Social sign-in and has no password yet. Adding one unlocks
+                Password sign-in too.
               </Typography.Paragraph>
-              <View className="gap-1">
-                <TextInput
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry
-                  editable={!isBusy}
-                  placeholder="8-15 chars, upper, lower, number & symbol"
-                  className="rounded-lg border border-separator px-3 py-2 text-foreground"
-                />
-              </View>
+              <FieldInput
+                label="New password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                editable={!isBusy}
+                placeholder="8-15 chars, upper, lower, number & symbol"
+              />
               <Button onPress={submitPassword} isDisabled={isBusy}>
                 {isBusy ? "Saving…" : "Add password"}
               </Button>
@@ -110,23 +114,15 @@ export default function Settings() {
         <Card variant="secondary">
           <Card.Body className="gap-4">
             <Typography.Heading type="h3">Devices</Typography.Heading>
-            <Button
-              variant="outline"
-              onPress={() => void signOutEverywhere()}
-              isDisabled={isBusy}
-            >
+            <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={isBusy}>
               Sign out everywhere
             </Button>
           </Card.Body>
         </Card>
 
-        {saved ? (
-          <Typography.Paragraph color="muted">{saved}</Typography.Paragraph>
-        ) : null}
+        {saved ? <Typography.Paragraph color="muted">{saved}</Typography.Paragraph> : null}
         {error ? (
-          <Typography.Paragraph className="text-danger">
-            {error}
-          </Typography.Paragraph>
+          <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
         ) : null}
       </ScrollView>
     </SafeAreaView>

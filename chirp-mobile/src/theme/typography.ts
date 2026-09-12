@@ -28,4 +28,15 @@ export const type = {
   "body-xs": { fontSize: 12, lineHeight: 20, fontWeight: "400" },
 } as const satisfies Record<string, TextStyle>;
 
+/*
+ * Display + band stacks — TS mirror of `--font-display` / `--font-band`
+ * in `src/global.css`. Display (field-guide serif) is for night-header
+ * headlines only; band (mono) is for kickers, codes, and Username bands.
+ * Body text stays on the system stack via HeroUI defaults.
+ */
+export const fontStack = {
+  display: "Georgia, 'Palatino Linotype', Palatino, serif",
+  band: "Menlo, Consolas, 'Courier New', monospace",
+} as const;
+
 export type TypeVariant = keyof typeof type;

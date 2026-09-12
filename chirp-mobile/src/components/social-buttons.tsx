@@ -16,11 +16,14 @@ import {
   newAppleNonce,
 } from "@/lib/social";
 import { useSessionStore } from "@/store/use-session-store";
+import { AppleMark, GoogleMark } from "@/components/provider-marks";
 
 /**
  * Social sign-in buttons, shared by the sign-in and sign-up screens.
- * Apple uses the platform control; Google uses a standard button that
- * opens the provider in a browser session.
+ * Apple uses the platform control where available (Apple requires it on
+ * iOS); elsewhere it falls back to a standard button that explains
+ * Apple sign-in is not available on that device. Google uses a standard
+ * button with its brand mark that opens the provider in a browser.
  */
 export function SocialButtons() {
   const socialSignIn = useSessionStore((state) => state.socialSignIn);
@@ -58,6 +61,12 @@ export function SocialButtons() {
   }, [googleResponse, socialSignIn]);
 
   const signInWithApple = async () => {
+    if (!appleAvailable) {
+      useSessionStore.setState({
+        error: "Apple sign-in is not available on this device. Use Google or your Email instead.",
+      });
+      return;
+    }
     try {
       const nonce = await newAppleNonce();
       const credential = await AppleAuthentication.signInAsync({
@@ -99,26 +108,48 @@ export function SocialButtons() {
 
   return (
     <View className="gap-3">
-      {appleAvailable ? (
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={
-            AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-          }
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={8}
-          // One-off: 44pt is Apple's minimum touch target; the button is
-          // Apple's own control, so its geometry stays in platform terms.
-          style={{ height: 44 }}
-          onPress={() => void signInWithApple()}
-        />
-      ) : null}
-      <Button
-        variant="outline"
-        onPress={() => void signInWithGoogle()}
-        isDisabled={isBusy || !googleRequest}
-      >
-        Continue with Google
-      </Button>
+      <View className="flex-row gap-3">
+        <View className="flex-1">
+          {appleAvailable ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={
+                AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+              }
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={8}
+              // One-off: 44pt is Apple's minimum touch target; the button is
+              // Apple's own control, so its geometry stays in platform terms.
+              style={{ height: 44 }}
+              onPress={() => void signInWithApple()}
+            />
+          ) : (
+            <Button
+              variant="primary"
+              onPress={() => void signInWithApple()}
+              isDisabled={isBusy}
+              accessibilityLabel="Continue with Apple"
+            >
+              <View className="flex-row items-center justify-center gap-2">
+                <AppleMark />
+                <Button.Label>Apple</Button.Label>
+              </View>
+            </Button>
+          )}
+        </View>
+        <View className="flex-1">
+          <Button
+            variant="outline"
+            onPress={() => void signInWithGoogle()}
+            isDisabled={isBusy || !googleRequest}
+            accessibilityLabel="Continue with Google"
+          >
+            <View className="flex-row items-center justify-center gap-2">
+              <GoogleMark />
+              <Button.Label>Google</Button.Label>
+            </View>
+          </Button>
+        </View>
+      </View>
       {error ? (
         <Typography.Paragraph className="text-danger">
           {error}
