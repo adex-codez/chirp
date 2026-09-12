@@ -7,11 +7,13 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -360,17 +362,9 @@ func base64URLToInt(raw string) (*big.Int, error) {
 
 func sha256Hex(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
-	return fmt.Sprintf("%x", sum)
+	return hex.EncodeToString(sum[:])
 }
 
 func splitDots(token string) []string {
-	var parts []string
-	start := 0
-	for i := 0; i < len(token); i++ {
-		if token[i] == '.' {
-			parts = append(parts, token[start:i])
-			start = i + 1
-		}
-	}
-	return append(parts, token[start:])
+	return strings.Split(token, ".")
 }
