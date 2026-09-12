@@ -25,3 +25,9 @@ Before making any UI changes:
 4. Reuse existing components whenever possible.
 5. If the requested UI conflicts with `design.md`, explain the conflict before changing the design system.
 6. Always use the frontend-design skill for the designs.
+
+## Go
+When writing go code:
+
+1. Read `deslop-go.md`.
+2. Follow the rules defined their to stop writing of slop go code.
