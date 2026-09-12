@@ -76,6 +76,8 @@ func (c *Client) Send(ctx context.Context, to, subject, html string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Best-effort: detail only enriches the error; the status code alone
+		// is enough to report the failure.
 		detail, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 		return fmt.Errorf("sendlib send failed: status %d: %s", resp.StatusCode, string(detail))
 	}
