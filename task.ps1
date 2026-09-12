@@ -35,7 +35,7 @@ Usage: .\task.ps1 <command> [options]
 Commands:
   build                   Build the server binary
   run                     Run the server
-  dev                     Run with hot reload (air)
+  dev                     Run with hot reload (air) + ngrok tunnel for the API
   migrate-new -Name <n>   Create a new migration
   migrate-up              Run pending migrations
   migrate-down            Rollback the last migration
