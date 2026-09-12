@@ -193,7 +193,15 @@ export const useSessionStore = create<SessionState>((set, get) => {
     isBusy: false,
 
     restore: async () => {
-      const saved = await loadSession();
+      // Storage failure must never brick the app on a permanent blank
+      // screen: fall through to guest when the persisted session is
+      // unreadable.
+      let saved: Awaited<ReturnType<typeof loadSession>>;
+      try {
+        saved = await loadSession();
+      } catch {
+        saved = null;
+      }
       // Sessions persisted before hasPassword existed normalize to true;
       // the server confirms the real value on the next /auth/me call.
       const savedUser = saved?.user
