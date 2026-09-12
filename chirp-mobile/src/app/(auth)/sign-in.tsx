@@ -1,13 +1,14 @@
 import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
-import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, View } from "react-native";
+import { AuthShell } from "@/components/auth-shell";
+import { FieldInput } from "@/components/field-input";
+import { Songline } from "@/components/songline";
+import { SocialButtons } from "@/components/social-buttons";
 
 import { useSessionStore } from "@/store/use-session-store";
-import { SocialButtons } from "@/components/social-buttons";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -17,10 +18,6 @@ export default function SignIn() {
   const signIn = useSessionStore((state) => state.signIn);
   const status = useSessionStore((state) => state.status);
 
-  // Transitions are owned by the route guards: success flips the session
-  // to authenticated and the protected group takes over; unverified
-  // sign-ins park at pending-verification and the root layout sends them
-  // to verify. Errors surface from the store.
   const submit = async () => {
     try {
       await signIn(email.trim(), password);
@@ -30,70 +27,66 @@ export default function SignIn() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow gap-6 px-6 py-8"
-      >
-        <View className="gap-2">
-          <Typography type="body-xs" weight="bold" className="text-accent">
-            WELCOME BACK
-          </Typography>
-          <Typography.Heading type="h1">Sign in to Chirp.</Typography.Heading>
+    <AuthShell
+      kicker="RETURNING CHORUS"
+      title="Welcome back."
+      intro="Sign in with your Email and password, or use Social sign-in."
+    >
+      <ScrollView className="flex-1" contentContainerClassName="grow gap-4 pb-6">
+        <View className="gap-4">
+          <FieldInput
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="you@example.com"
+          />
+          <FieldInput
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="Your password"
+          />
+          {error ? (
+            <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
+          ) : null}
+          {status === "pending-verification" ? (
+            <Typography.Paragraph color="muted">
+              That Email is not verified yet — check your inbox for the code.
+            </Typography.Paragraph>
+          ) : null}
         </View>
 
-        <Card variant="secondary">
-          <Card.Body className="gap-4">
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Email
-              </Typography>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            <View className="gap-1">
-              <Typography type="body-sm" weight="bold">
-                Password
-              </Typography>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="Your password"
-                className="rounded-lg border border-separator px-3 py-2 text-foreground"
-              />
-            </View>
-            {error ? (
-              <Typography.Paragraph className="text-danger">
-                {error}
-              </Typography.Paragraph>
-            ) : null}
-            {status === "pending-verification" ? (
-              <Typography.Paragraph color="muted">
-                That Email is not verified yet — check your inbox for the code.
-              </Typography.Paragraph>
-            ) : null}
-          </Card.Body>
-          <Card.Footer className="flex-col items-stretch gap-3">
-            <Button onPress={submit} isDisabled={isBusy}>
-              {isBusy ? "Signing in…" : "Sign in"}
+        <Button onPress={submit} isDisabled={isBusy}>
+          {isBusy ? "Signing in…" : "Sign in"}
+        </Button>
+
+        <View className="flex-row items-center gap-3">
+          <View className="h-px flex-1 bg-separator" />
+          <Songline height={20} levels={[10, 22, 14, 30, 18, 26, 12]} />
+          <View className="h-px flex-1 bg-separator" />
+        </View>
+
+        <SocialButtons />
+
+        <View className="items-center gap-0.5">
+          <Link href="/forgot-password" asChild>
+            <Button variant="ghost" size="sm">
+              Forgot password?
             </Button>
-            <SocialButtons />
-            <Link href="/forgot-password" asChild>
-              <Button variant="outline">Forgot password?</Button>
-            </Link>
+          </Link>
+          <View className="flex-row items-center justify-center gap-1.5">
+            <Typography color="muted">Don&apos;t have an account?</Typography>
             <Link href="/sign-up" asChild>
-              <Button variant="outline">Sign up instead</Button>
+              <Typography weight="bold" className="text-accent">
+                Sign up
+              </Typography>
             </Link>
-          </Card.Footer>
-        </Card>
+          </View>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </AuthShell>
   );
 }

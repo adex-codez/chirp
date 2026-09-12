@@ -3,41 +3,47 @@ import { Button } from "heroui-native/button";
 import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/safe-area-view";
+import { BandChip } from "@/components/band-chip";
+import { ChirpLogo } from "@/components/chirp-logo";
+import { Songline } from "@/components/songline";
+import { fontStack } from "@/theme/typography";
 
 import { useAppStore } from "@/store/use-app-store";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function Index() {
-  const isNotificationsEnabled = useAppStore(
-    (state) => state.isNotificationsEnabled,
-  );
-  const toggleNotifications = useAppStore(
-    (state) => state.toggleNotifications,
-  );
+  const isNotificationsEnabled = useAppStore((state) => state.isNotificationsEnabled);
+  const toggleNotifications = useAppStore((state) => state.toggleNotifications);
   const sessionStatus = useSessionStore((state) => state.status);
   const sessionUser = useSessionStore((state) => state.user);
   const signOut = useSessionStore((state) => state.signOut);
-  const signOutEverywhere = useSessionStore(
-    (state) => state.signOutEverywhere,
-  );
+  const signOutEverywhere = useSessionStore((state) => state.signOutEverywhere);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="grow gap-8 px-6 py-8"
-      >
+      <ScrollView className="flex-1" contentContainerClassName="grow gap-6 px-6 py-8">
         <View className="gap-3">
-          <Typography type="body-xs" weight="bold" className="text-accent">
-            CHIRP MOBILE
+          <View className="flex-row items-center justify-between">
+            <ChirpLogo size={44} />
+            <Typography
+              style={{ fontFamily: fontStack.band, letterSpacing: 2 }}
+              type="body-xs"
+              weight="bold"
+              className="text-accent"
+            >
+              FIRST LIGHT
+            </Typography>
+          </View>
+          <Typography style={{ fontFamily: fontStack.display, fontStyle: "italic" }} type="h1">
+            Your chorus is ready.
           </Typography>
-          <Typography.Heading type="h1">
-            Your social space is ready.
-          </Typography.Heading>
+          {sessionStatus === "authenticated" && sessionUser ? (
+            <BandChip username={sessionUser.username} verified />
+          ) : null}
+          <Songline height={28} />
           <Typography.Paragraph color="muted">
-            HeroUI and Uniwind handle the interface. Zustand owns local state,
-            and TanStack Query is ready for server data.
+            Every voice here is banded — one verified User, one Username, no mimics.
           </Typography.Paragraph>
         </View>
 
@@ -81,7 +87,7 @@ export default function Index() {
                   <Button>Sign in</Button>
                 </Link>
                 <Link href="/sign-up" asChild>
-                  <Button variant="outline">Sign up</Button>
+                  <Button variant="outline">Claim a Username</Button>
                 </Link>
               </>
             )}
@@ -90,10 +96,9 @@ export default function Index() {
 
         <Card variant="secondary">
           <Card.Body className="gap-3">
-            <Typography.Heading type="h3">App foundation</Typography.Heading>
+            <Typography.Heading type="h3">Notifications</Typography.Heading>
             <Typography.Paragraph color="muted">
-              This button reads and updates a Zustand store, so the shared app
-              state is wired from the first screen.
+              Hear the chorus when something needs you. Quiet by default.
             </Typography.Paragraph>
           </Card.Body>
           <Card.Footer>
@@ -101,9 +106,7 @@ export default function Index() {
               variant={isNotificationsEnabled ? "primary" : "outline"}
               onPress={toggleNotifications}
             >
-              {isNotificationsEnabled
-                ? "Notifications on"
-                : "Notifications off"}
+              {isNotificationsEnabled ? "Notifications on" : "Notifications off"}
             </Button>
           </Card.Footer>
         </Card>

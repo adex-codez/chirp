@@ -55,6 +55,24 @@ Accent pairs (`accent.light` / `accent.dark`) mirror `--accent` /
 In `className`, use `text-accent` / `bg-accent`. `accent-*` soft/hover
 variants derive automatically via `color-mix` in HeroUI's theme.
 
+Dawn chorus accents (banding-station palette, mirror `--color-*` in
+`global.css` → `colors.ts`):
+
+| Token | Hex | Use |
+|---|---|---|
+| `night` | `#071627` | auth header wash |
+| `dawn.DEFAULT` | `#FFC247` | songline bars, band rivets, focus rings — the single signature |
+| `dawn.deep` | `#E89B2E` | pressed gold |
+| `lichen` | `#1E6F5C` | verified states only |
+
+Type stacks (`fontStack` → `--font-*`): `display` is Georgia/Palatino
+serif for night-header headlines only; `band` is Menlo/Consolas mono
+for kickers, codes, and Username bands. Body stays on HeroUI system.
+
+Signature components in `src/components/`: `AuthShell` (night band +
+step meter), `Songline` (sonogram divider/progress), `FieldInput`
+(mono label + gold focus), `BandChip` (Username as leg band).
+
 Do not add semantic surface/muted/status/border colors here —
 HeroUI owns them.
 

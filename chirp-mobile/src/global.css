@@ -25,6 +25,20 @@
   --color-brand-900: #0b2036;
   --color-brand-950: #071627;
 
+  /*
+   * Dawn chorus accents — the banding-station palette. Beak gold is the
+   * single signature: sonogram lines, band rivets, verified seals.
+   * Lichen marks verified states only. Night is the auth header wash.
+   */
+  --color-night: #071627;
+  --color-dawn: #ffc247;
+  --color-dawn-deep: #e89b2e;
+  --color-lichen: #1e6f5c;
+
+  /* Type stacks: field-guide serif for display, mono for band data. */
+  --font-display: Georgia, "Palatino Linotype", Palatino, serif;
+  --font-band: Menlo, Consolas, "Courier New", monospace;
+
   /* App motion tokens (ms). Use with Reanimated or CSS transitions. */
   --motion-fast: 150ms;
   --motion-base: 250ms;
