@@ -54,6 +54,7 @@ const (
 )
 
 func Load() (Config, error) {
+	// Missing .env is fine: production takes configuration from the environment.
 	_ = godotenv.Load()
 
 	port := 8080

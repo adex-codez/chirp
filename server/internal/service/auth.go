@@ -12,6 +12,7 @@ import (
 	"backend/internal/auth"
 	"backend/internal/mail"
 	"backend/internal/repository"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -116,9 +117,13 @@ type SignUpResult struct {
 }
 
 // AuthService contains the application behavior for joining, verifying,
-// signing in, and Social sign-in.
+// signing in, and Social sign-in. It depends on the four narrow persistence
+// stores it actually uses rather than one wide repository interface.
 type AuthService struct {
-	repository      repository.AuthRepository
+	users           repository.UserRepository
+	challenges      repository.ChallengeRepository
+	sessions        repository.SessionRepository
+	identities      repository.IdentityRepository
 	jwtSecret       string
 	devExposeCodes  bool
 	appleAudience   string
@@ -131,9 +136,12 @@ type AuthService struct {
 // point owns configuration. mailer may be nil (or disabled without an API
 // key): sends are skipped and codes stay in responses. now is nil in
 // production (uses time.Now) and overridden in tests.
-func NewAuthService(repo repository.AuthRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client) *AuthService {
+func NewAuthService(users repository.UserRepository, challenges repository.ChallengeRepository, sessions repository.SessionRepository, identities repository.IdentityRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client) *AuthService {
 	return &AuthService{
-		repository:      repo,
+		users:           users,
+		challenges:      challenges,
+		sessions:        sessions,
+		identities:      identities,
 		jwtSecret:       jwtSecret,
 		devExposeCodes:  devExposeCodes,
 		appleAudience:   appleAudience,
@@ -165,12 +173,12 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 		return SignUpResult{}, err
 	}
 
-	if _, err := s.repository.GetUserByUsername(ctx, username); err == nil {
+	if _, err := s.users.GetUserByUsername(ctx, username); err == nil {
 		return SignUpResult{}, ErrUsernameTaken
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return SignUpResult{}, err
 	}
-	if _, err := s.repository.GetUserByEmail(ctx, email); err == nil {
+	if _, err := s.users.GetUserByEmail(ctx, email); err == nil {
 		return SignUpResult{}, ErrEmailTaken
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return SignUpResult{}, err
@@ -180,7 +188,7 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 	if err != nil {
 		return SignUpResult{}, err
 	}
-	created, err := s.repository.CreateUser(ctx, username, email, string(hash))
+	created, err := s.users.CreateUser(ctx, username, email, string(hash))
 	if err != nil {
 		return SignUpResult{}, mapTaken(err)
 	}
@@ -207,7 +215,7 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 // User in with its first token pair.
 func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel string) (AuthResult, error) {
 	email = strings.TrimSpace(email)
-	user, err := s.repository.GetUserByEmail(ctx, email)
+	user, err := s.users.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrInvalidChallenge
@@ -222,7 +230,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 		return AuthResult{}, err
 	}
 
-	if err := s.repository.MarkUserVerified(ctx, user.ID); err != nil {
+	if err := s.users.MarkUserVerified(ctx, user.ID); err != nil {
 		return AuthResult{}, err
 	}
 	user.EmailVerified = true
@@ -233,7 +241,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 // ResendVerification invalidates the pending challenge and issues a fresh one.
 func (s *AuthService) ResendVerification(ctx context.Context, email string) (SignUpResult, error) {
 	email = strings.TrimSpace(email)
-	user, err := s.repository.GetUserByEmail(ctx, email)
+	user, err := s.users.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return SignUpResult{}, ErrNoPendingVerify
@@ -244,16 +252,19 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 		return SignUpResult{}, ErrAlreadyVerified
 	}
 
-	if pending, err := s.repository.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeVerifyEmail); err == nil {
+	if pending, err := s.challenges.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeVerifyEmail); err == nil {
 		if s.currentTime().Sub(pending.CreatedAt) < VerificationResendCooldown {
 			return SignUpResult{}, ErrResendTooSoon
 		}
-		_ = s.repository.ConsumeVerificationChallenge(ctx, pending.ID)
+		// Best-effort: the fresh challenge below supersedes the pending one.
+		// If this fails, checkChallenge only honours the latest challenge,
+		// so the stale row cannot be used to bypass the resend.
+		_ = s.challenges.ConsumeVerificationChallenge(ctx, pending.ID)
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return SignUpResult{}, err
 	}
 
-	recent, err := s.repository.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeVerifyEmail, s.currentTime().Add(-time.Hour))
+	recent, err := s.challenges.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeVerifyEmail, s.currentTime().Add(-time.Hour))
 	if err != nil {
 		return SignUpResult{}, err
 	}
@@ -280,7 +291,7 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 // generic error and Users cannot be enumerated; only a correct password on an
 // unverified Email reveals that verification is pending.
 func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel string) (AuthResult, error) {
-	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
+	user, err := s.users.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrInvalidSignIn
@@ -301,7 +312,7 @@ func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel s
 // fresh pair is issued. Presenting an already-rotated or revoked token signals
 // theft, so every session of the User is revoked instead.
 func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel string) (AuthResult, error) {
-	session, err := s.repository.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
+	session, err := s.sessions.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrInvalidSession
@@ -309,15 +320,18 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel str
 		return AuthResult{}, err
 	}
 	if session.Revoked || session.ReplacedBy != "" {
-		_ = s.repository.RevokeAllUserSessions(ctx, session.UserID)
+		// Best-effort theft containment: the request still fails closed with
+		// ErrSessionRevoked below, so a revoke failure only delays cleanup.
+		_ = s.sessions.RevokeAllUserSessions(ctx, session.UserID)
 		return AuthResult{}, ErrSessionRevoked
 	}
 	if !s.currentTime().Before(session.ExpiresAt) {
-		_ = s.repository.RevokeSession(ctx, session.ID)
+		// Best-effort: the session is already expired and denied below.
+		_ = s.sessions.RevokeSession(ctx, session.ID)
 		return AuthResult{}, ErrInvalidSession
 	}
 
-	user, err := s.repository.GetUserByID(ctx, session.UserID)
+	user, err := s.users.GetUserByID(ctx, session.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrUserNotFound
@@ -328,7 +342,7 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel str
 	if err != nil {
 		return AuthResult{}, err
 	}
-	if err := s.repository.ReplaceSession(ctx, session.ID, newSessionID); err != nil {
+	if err := s.sessions.ReplaceSession(ctx, session.ID, newSessionID); err != nil {
 		return AuthResult{}, err
 	}
 	return result, nil
@@ -337,14 +351,14 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel str
 // SignOut revokes the presenting session only. Unknown tokens succeed
 // idempotently: there is nothing left to cut off.
 func (s *AuthService) SignOut(ctx context.Context, refreshToken string) error {
-	session, err := s.repository.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
+	session, err := s.sessions.GetSessionByRefreshHash(ctx, auth.HashRefreshToken(refreshToken))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return nil
 		}
 		return err
 	}
-	return s.repository.RevokeSession(ctx, session.ID)
+	return s.sessions.RevokeSession(ctx, session.ID)
 }
 
 // SignOutAll revokes every session of the User behind the access token.
@@ -353,7 +367,7 @@ func (s *AuthService) SignOutAll(ctx context.Context, accessToken string) error 
 	if err != nil {
 		return err
 	}
-	return s.repository.RevokeAllUserSessions(ctx, user.ID)
+	return s.sessions.RevokeAllUserSessions(ctx, user.ID)
 }
 
 // SocialResult answers a Social sign-in: either a full session, or a pending
@@ -377,7 +391,7 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 
 	// Known provider subjects sign straight in, even when the provider
 	// omits the Email on repeat visits (Apple does after first consent).
-	if link, err := s.repository.GetIdentity(ctx, identity.Provider, identity.Subject); err == nil {
+	if link, err := s.identities.GetIdentity(ctx, identity.Provider, identity.Subject); err == nil {
 		return s.socialSession(ctx, link.UserID, deviceLabel)
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return SocialResult{}, err
@@ -387,7 +401,7 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 		return SocialResult{}, ErrSocialNoEmail
 	}
 	if !identity.EmailVerified {
-		if _, err := s.repository.GetUserByEmail(ctx, identity.Email); err == nil {
+		if _, err := s.users.GetUserByEmail(ctx, identity.Email); err == nil {
 			return SocialResult{}, ErrSocialConflict
 		} else if !errors.Is(err, repository.ErrAuthNotFound) {
 			return SocialResult{}, err
@@ -395,14 +409,14 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 		return SocialResult{}, ErrSocialUnverified
 	}
 
-	if user, err := s.repository.GetUserByEmail(ctx, identity.Email); err == nil {
+	if user, err := s.users.GetUserByEmail(ctx, identity.Email); err == nil {
 		// Link only when the existing User already proved the Email too:
 		// otherwise a provider-verified address could take over an
 		// unverified Password sign-in account.
 		if !user.EmailVerified {
 			return SocialResult{}, ErrSocialConflict
 		}
-		if _, err := s.repository.CreateIdentity(ctx, user.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
+		if _, err := s.identities.CreateIdentity(ctx, user.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
 			return SocialResult{}, err
 		}
 		return s.socialSession(ctx, user.ID, deviceLabel)
@@ -410,18 +424,18 @@ func (s *AuthService) SocialSignIn(ctx context.Context, provider, idToken, nonce
 		return SocialResult{}, err
 	}
 
-	created, err := s.repository.CreateUser(ctx, "", identity.Email, "")
+	created, err := s.users.CreateUser(ctx, "", identity.Email, "")
 	if err != nil {
 		return SocialResult{}, mapTaken(err)
 	}
 	if !created.EmailVerified {
 		// Provider-vouched addresses arrive verified.
-		if err := s.repository.MarkUserVerified(ctx, created.ID); err != nil {
+		if err := s.users.MarkUserVerified(ctx, created.ID); err != nil {
 			return SocialResult{}, err
 		}
 		created.EmailVerified = true
 	}
-	if _, err := s.repository.CreateIdentity(ctx, created.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
+	if _, err := s.identities.CreateIdentity(ctx, created.ID, identity.Provider, identity.Subject, identity.Email); err != nil {
 		return SocialResult{}, err
 	}
 	pending, err := auth.SignPendingToken(s.jwtSecret, created.ID, PendingTokenTTL, s.currentTime())
@@ -447,7 +461,7 @@ func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username st
 		return AuthResult{}, err
 	}
 	username = strings.TrimSpace(username)
-	holder, err := s.repository.GetUserByID(ctx, userID)
+	holder, err := s.users.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrUserNotFound
@@ -466,7 +480,7 @@ func (s *AuthService) SetUsername(ctx context.Context, pendingToken, username st
 }
 
 func (s *AuthService) socialSession(ctx context.Context, userID, deviceLabel string) (SocialResult, error) {
-	user, err := s.repository.GetUserByID(ctx, userID)
+	user, err := s.users.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return SocialResult{}, ErrUserNotFound
@@ -521,7 +535,7 @@ func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, 
 // without a challenge, so accounts cannot be enumerated through this
 // endpoint (at the cost of hiding "try again later" from legitimate users).
 func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
-	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
+	user, err := s.users.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil || !user.EmailVerified {
 		if err != nil && !errors.Is(err, repository.ErrAuthNotFound) {
 			return err
@@ -529,16 +543,18 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 		return nil
 	}
 
-	if pending, err := s.repository.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeResetPassword); err == nil {
+	if pending, err := s.challenges.GetLatestVerificationChallenge(ctx, user.ID, ChallengePurposeResetPassword); err == nil {
 		if s.currentTime().Sub(pending.CreatedAt) < VerificationResendCooldown {
 			return nil
 		}
-		_ = s.repository.ConsumeVerificationChallenge(ctx, pending.ID)
+		// Best-effort: the fresh challenge below supersedes the pending one;
+		// a stale row cannot extend the cooldown window.
+		_ = s.challenges.ConsumeVerificationChallenge(ctx, pending.ID)
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return err
 	}
 
-	recent, err := s.repository.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeResetPassword, s.currentTime().Add(-time.Hour))
+	recent, err := s.challenges.CountRecentVerificationChallenges(ctx, user.ID, ChallengePurposeResetPassword, s.currentTime().Add(-time.Hour))
 	if err != nil {
 		return err
 	}
@@ -559,7 +575,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) error {
 // ResetPassword consumes a reset challenge, replaces the stored secret under
 // the shared password policy, and revokes every pre-reset session.
 func (s *AuthService) ResetPassword(ctx context.Context, email, code, password string) error {
-	user, err := s.repository.GetUserByEmail(ctx, strings.TrimSpace(email))
+	user, err := s.users.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return ErrInvalidChallenge
@@ -577,10 +593,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, code, password s
 	if err != nil {
 		return err
 	}
-	if err := s.repository.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
+	if err := s.users.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
 		return err
 	}
-	return s.repository.RevokeAllUserSessions(ctx, user.ID)
+	return s.sessions.RevokeAllUserSessions(ctx, user.ID)
 }
 
 // AddPassword sets the first password for a signed-in User that has none
@@ -591,7 +607,7 @@ func (s *AuthService) AddPassword(ctx context.Context, accessToken, password str
 	if err != nil {
 		return err
 	}
-	full, err := s.repository.GetUserByID(ctx, user.ID)
+	full, err := s.users.GetUserByID(ctx, user.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return ErrUserNotFound
@@ -608,7 +624,7 @@ func (s *AuthService) AddPassword(ctx context.Context, accessToken, password str
 	if err != nil {
 		return err
 	}
-	return s.repository.UpdatePassword(ctx, user.ID, string(hash))
+	return s.users.UpdatePassword(ctx, user.ID, string(hash))
 }
 
 // ChangeUsername renames a signed-in User under the same format and
@@ -631,7 +647,7 @@ func (s *AuthService) assignUsername(ctx context.Context, userID, username strin
 		return repository.AuthUser{}, err
 	}
 	username = strings.TrimSpace(username)
-	if existing, err := s.repository.GetUserByUsername(ctx, username); err == nil {
+	if existing, err := s.users.GetUserByUsername(ctx, username); err == nil {
 		if existing.ID != userID {
 			return repository.AuthUser{}, ErrUsernameTaken
 		}
@@ -639,7 +655,7 @@ func (s *AuthService) assignUsername(ctx context.Context, userID, username strin
 	} else if !errors.Is(err, repository.ErrAuthNotFound) {
 		return repository.AuthUser{}, err
 	}
-	updated, err := s.repository.UpdateUsername(ctx, userID, username)
+	updated, err := s.users.UpdateUsername(ctx, userID, username)
 	if err != nil {
 		return repository.AuthUser{}, mapTaken(err)
 	}
@@ -653,7 +669,7 @@ func (s *AuthService) issuePurposeChallenge(ctx context.Context, userID, purpose
 	if err != nil {
 		return "", err
 	}
-	_, err = s.repository.CreateVerificationChallenge(ctx, userID, purpose, hash, s.currentTime().Add(VerificationCodeTTL))
+	_, err = s.challenges.CreateVerificationChallenge(ctx, userID, purpose, hash, s.currentTime().Add(VerificationCodeTTL))
 	if err != nil {
 		return "", err
 	}
@@ -670,7 +686,7 @@ func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUs
 	if scope != auth.ScopeFull {
 		return PublicUser{}, ErrInvalidSession
 	}
-	user, err := s.repository.GetUserByID(ctx, userID)
+	user, err := s.users.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return PublicUser{}, ErrUserNotFound
@@ -684,7 +700,7 @@ func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUs
 // purpose, consuming it on success, expiry, or lock. Wrong guesses count
 // toward the lock; locked challenges stay until expiry or replacement.
 func (s *AuthService) checkChallenge(ctx context.Context, userID, purpose, code string) error {
-	challenge, err := s.repository.GetLatestVerificationChallenge(ctx, userID, purpose)
+	challenge, err := s.challenges.GetLatestVerificationChallenge(ctx, userID, purpose)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return ErrInvalidChallenge
@@ -693,21 +709,26 @@ func (s *AuthService) checkChallenge(ctx context.Context, userID, purpose, code 
 	}
 
 	if s.currentTime().After(challenge.ExpiresAt) {
-		_ = s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
+		// Best-effort: expiry alone denies the attempt below; consuming just
+		// keeps the table tidy.
+		_ = s.challenges.ConsumeVerificationChallenge(ctx, challenge.ID)
 		return ErrInvalidChallenge
 	}
 	if challenge.Attempts >= VerificationMaxAttempts {
 		return ErrChallengeLocked
 	}
 	if auth.HashVerificationCode(strings.TrimSpace(code)) != challenge.CodeHash {
-		_ = s.repository.IncrementChallengeAttempts(ctx, challenge.ID)
+		// Best-effort: the guess is already denied below. If the counter
+		// write fails, the in-memory Attempts+1 check still locks this
+		// request when the threshold is reached.
+		_ = s.challenges.IncrementChallengeAttempts(ctx, challenge.ID)
 		if challenge.Attempts+1 >= VerificationMaxAttempts {
 			return ErrChallengeLocked
 		}
 		return ErrInvalidChallenge
 	}
 
-	return s.repository.ConsumeVerificationChallenge(ctx, challenge.ID)
+	return s.challenges.ConsumeVerificationChallenge(ctx, challenge.ID)
 }
 
 func (s *AuthService) issueChallenge(ctx context.Context, userID string) (string, error) {
@@ -724,7 +745,7 @@ func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser
 	if err != nil {
 		return AuthResult{}, "", err
 	}
-	sessionID, err := s.repository.CreateSession(ctx, user.ID, refreshHash, now.Add(RefreshTokenTTL), deviceLabel)
+	sessionID, err := s.sessions.CreateSession(ctx, user.ID, refreshHash, now.Add(RefreshTokenTTL), deviceLabel)
 	if err != nil {
 		return AuthResult{}, "", err
 	}
@@ -772,12 +793,14 @@ func validateEmail(email string) error {
 // mapTaken converts a storage uniqueness violation into the taken error the
 // caller can name. The pre-checks above name the field; this is the race guard.
 func mapTaken(err error) error {
-	msg := strings.ToLower(err.Error())
-	if strings.Contains(msg, "users_username_unique") || strings.Contains(msg, "username") && strings.Contains(msg, "duplicate") {
-		return ErrUsernameTaken
-	}
-	if strings.Contains(msg, "users_email_unique") || strings.Contains(msg, "email") && strings.Contains(msg, "duplicate") {
-		return ErrEmailTaken
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		switch pgErr.ConstraintName {
+		case "users_username_unique":
+			return ErrUsernameTaken
+		case "users_email_unique":
+			return ErrEmailTaken
+		}
 	}
 	return err
 }

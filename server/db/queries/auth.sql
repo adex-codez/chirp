@@ -80,7 +80,7 @@ SET password_hash = $2, updated_at = now()
 WHERE id = $1::uuid;
 
 -- name: GetSessionByRefreshHash :one
-SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at
+SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, replaced_by::text AS replaced_by, created_at
 FROM sessions
 WHERE refresh_hash = $1
 LIMIT 1;
