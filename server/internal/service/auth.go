@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/mail"
 	"regexp"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"backend/internal/auth"
 	"backend/internal/mail"
 	"backend/internal/repository"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
