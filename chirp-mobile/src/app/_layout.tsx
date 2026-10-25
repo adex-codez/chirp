@@ -19,11 +19,13 @@ export default function RootLayout() {
   }, [restore]);
 
   // Pending Users have unfinished setup, so they belong on their setup
-  // screen rather than anywhere else in the sign-in group.
+  // screen rather than anywhere else in the sign-in group. Segments start
+  // with the route group, so the leaf name identifies the current screen.
   useEffect(() => {
-    if (status === "pending-verification" && segments[0] !== "verify") {
+    const screen = segments[segments.length - 1];
+    if (status === "pending-verification" && screen !== "verify") {
       router.replace("/verify");
-    } else if (status === "needs-username" && segments[0] !== "choose-username") {
+    } else if (status === "needs-username" && screen !== "choose-username") {
       router.replace("/choose-username");
     }
   }, [status, segments]);
