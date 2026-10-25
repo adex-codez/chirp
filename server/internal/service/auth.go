@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/mail"
+	netmail "net/mail"
 	"regexp"
 	"strings"
 	"time"
@@ -763,7 +763,7 @@ func validateEmail(email string) error {
 	if len(email) == 0 || len(email) > 254 {
 		return ValidationError{Detail: "email must be 1-254 characters"}
 	}
-	if _, err := mail.ParseAddress(email); err != nil {
+	if _, err := netmail.ParseAddress(email); err != nil {
 		return ValidationError{Detail: "email must be a valid address"}
 	}
 	return nil
