@@ -9,6 +9,17 @@ import { useSessionStore } from "@/store/use-session-store";
 
 void SplashScreen.preventAutoHideAsync();
 
+// Public screens inside the sign-in group. Route groups stay in `segments`,
+// so the leaf is the last entry. Extend when the group gains screens.
+const AUTH_LEAVES = new Set([
+  "sign-in",
+  "sign-up",
+  "verify",
+  "choose-username",
+  "forgot-password",
+  "reset-password",
+]);
+
 export default function RootLayout() {
   const status = useSessionStore((state) => state.status);
   const restore = useSessionStore((state) => state.restore);
@@ -19,14 +30,20 @@ export default function RootLayout() {
   }, [restore]);
 
   // Pending Users have unfinished setup, so they belong on their setup
-  // screen rather than anywhere else in the sign-in group. Segments start
-  // with the route group, so the leaf name identifies the current screen.
+  // screen rather than anywhere else in the sign-in group. Guests that land
+  // outside the public group would render an empty shell, so they go to
+  // sign-in instead.
   useEffect(() => {
     const screen = segments[segments.length - 1];
     if (status === "pending-verification" && screen !== "verify") {
       router.replace("/verify");
     } else if (status === "needs-username" && screen !== "choose-username") {
       router.replace("/choose-username");
+    } else if (
+      status === "guest" &&
+      (screen === undefined || !AUTH_LEAVES.has(screen))
+    ) {
+      router.replace("/sign-in");
     }
   }, [status, segments]);
 
@@ -45,12 +62,13 @@ export default function RootLayout() {
   return (
     <AppProvider>
       <StatusBar style="dark" />
-      <Stack>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Protected guard={status !== "authenticated"}>
-          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={status === "authenticated"}>
-          <Stack.Screen name="(app)" />
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>
     </AppProvider>
