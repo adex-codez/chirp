@@ -29,6 +29,19 @@ export const brand = {
 /** Primary brand color. */
 export const primary = brand[800];
 
+/** Night wash for auth headers (same as brand-950, named for intent). */
+export const night = "#071627" as const;
+
+/**
+ * Dawn chorus accents — TS mirror of `--color-dawn` / `--color-dawn-deep`
+ * in `src/global.css`. Gold is the single signature (sonogram, band
+ * rivets). Verified states use HeroUI's `success` token.
+ */
+export const dawn = {
+  DEFAULT: "#FFC247",
+  deep: "#E89B2E",
+} as const;
+
 /**
  * Accent pairs per color scheme. Mirrors the `--accent` /
  * `--accent-foreground` overrides in `src/global.css`.

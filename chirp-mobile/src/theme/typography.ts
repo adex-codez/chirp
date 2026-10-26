@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { TextStyle } from "react-native";
 
 /*
@@ -27,5 +28,27 @@ export const type = {
   "body-sm": { fontSize: 14, lineHeight: 24, fontWeight: "400" },
   "body-xs": { fontSize: 12, lineHeight: 20, fontWeight: "400" },
 } as const satisfies Record<string, TextStyle>;
+
+/*
+ * Display + band faces. Display (field-guide serif) is for night-header
+ * headlines only; band (mono) is for kickers, codes, and Username bands.
+ * Body text stays on the system font via HeroUI.
+ *
+ * React Native takes one family name per platform, not a CSS stack, so
+ * these are the only font definitions; `global.css` carries no font
+ * tokens.
+ */
+export const fontStack = {
+  display: Platform.select({
+    ios: "Georgia",
+    android: "serif",
+    default: "Georgia",
+  }),
+  band: Platform.select({
+    ios: "Menlo",
+    android: "monospace",
+    default: "monospace",
+  }),
+} as const;
 
 export type TypeVariant = keyof typeof type;
