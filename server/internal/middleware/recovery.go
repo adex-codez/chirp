@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"log/slog"
-	"net/http"
 	"runtime/debug"
 
 	"backend/internal/response"
@@ -23,7 +22,7 @@ func Recovery() gin.HandlerFunc {
 				slog.ErrorContext(c.Request.Context(), "panic recovered", attrs...)
 
 				c.Abort()
-				response.Error(c, http.StatusInternalServerError, "internal server error")
+				response.FailCode(c, response.CodeInternalError)
 			}
 		}()
 

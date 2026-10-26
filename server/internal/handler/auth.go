@@ -2,8 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"strings"
 
 	"backend/internal/response"
@@ -105,12 +103,12 @@ type changeUsernameRequest struct {
 func (h *AuthHandler) SignUp(c *gin.Context) {
 	var req signUpRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "username, email, and password are required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username, email and password."})
 		return
 	}
 	result, err := h.service.SignUp(c.Request.Context(), req.Username, req.Email, req.Password, req.DeviceLabel)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -120,12 +118,12 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 func (h *AuthHandler) Verify(c *gin.Context) {
 	var req verifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "email and code are required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with an email and code."})
 		return
 	}
 	result, err := h.service.VerifyEmail(c.Request.Context(), req.Email, req.Code, req.DeviceLabel)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -135,12 +133,12 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 func (h *AuthHandler) Resend(c *gin.Context) {
 	var req resendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "email is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with an email."})
 		return
 	}
 	result, err := h.service.ResendVerification(c.Request.Context(), req.Email)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -150,12 +148,12 @@ func (h *AuthHandler) Resend(c *gin.Context) {
 func (h *AuthHandler) SignIn(c *gin.Context) {
 	var req signInRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "email and password are required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with an email and password."})
 		return
 	}
 	result, err := h.service.SignIn(c.Request.Context(), req.Email, req.Password, req.DeviceLabel)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -165,12 +163,12 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 func (h *AuthHandler) Profile(c *gin.Context) {
 	token, ok := bearerToken(c.GetHeader("Authorization"))
 	if !ok {
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		response.FailCode(c, response.CodeInvalidSession)
 		return
 	}
 	user, err := h.service.Profile(c.Request.Context(), token)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, user)
@@ -180,12 +178,12 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req refreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "refresh token is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a refresh token."})
 		return
 	}
 	result, err := h.service.Refresh(c.Request.Context(), req.RefreshToken, req.DeviceLabel)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -195,11 +193,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 func (h *AuthHandler) SignOut(c *gin.Context) {
 	var req signOutRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "refresh token is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a refresh token."})
 		return
 	}
 	if err := h.service.SignOut(c.Request.Context(), req.RefreshToken); err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, gin.H{"signed_out": true})
@@ -209,11 +207,11 @@ func (h *AuthHandler) SignOut(c *gin.Context) {
 func (h *AuthHandler) SignOutAll(c *gin.Context) {
 	token, ok := bearerToken(c.GetHeader("Authorization"))
 	if !ok {
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		response.FailCode(c, response.CodeInvalidSession)
 		return
 	}
 	if err := h.service.SignOutAll(c.Request.Context(), token); err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, gin.H{"signed_out_everywhere": true})
@@ -224,12 +222,12 @@ func (h *AuthHandler) SignOutAll(c *gin.Context) {
 func (h *AuthHandler) SocialSignIn(c *gin.Context) {
 	var req socialRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "provider and id token are required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a provider and id token."})
 		return
 	}
 	result, err := h.service.SocialSignIn(c.Request.Context(), req.Provider, req.IDToken, req.Nonce, req.DeviceLabel)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	if result.Pending {
@@ -248,17 +246,17 @@ func (h *AuthHandler) SocialSignIn(c *gin.Context) {
 func (h *AuthHandler) SetUsername(c *gin.Context) {
 	token, ok := bearerToken(c.GetHeader("Authorization"))
 	if !ok {
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		response.FailCode(c, response.CodeInvalidSession)
 		return
 	}
 	var req setUsernameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "username is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username."})
 		return
 	}
 	result, err := h.service.SetUsername(c.Request.Context(), token, req.Username)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, result)
@@ -270,11 +268,11 @@ func (h *AuthHandler) SetUsername(c *gin.Context) {
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req forgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "email is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with an email."})
 		return
 	}
 	if err := h.service.ForgotPassword(c.Request.Context(), req.Email); err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, gin.H{"reset_sent": true})
@@ -284,11 +282,11 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req resetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "email, code, and a new password are required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with an email, code and new password."})
 		return
 	}
 	if err := h.service.ResetPassword(c.Request.Context(), req.Email, req.Code, req.NewPassword); err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, gin.H{"password_reset": true})
@@ -298,16 +296,16 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 func (h *AuthHandler) AddPassword(c *gin.Context) {
 	token, ok := bearerToken(c.GetHeader("Authorization"))
 	if !ok {
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		response.FailCode(c, response.CodeInvalidSession)
 		return
 	}
 	var req addPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "a new password is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a new password."})
 		return
 	}
 	if err := h.service.AddPassword(c.Request.Context(), token, req.NewPassword); err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, gin.H{"password_added": true})
@@ -317,17 +315,17 @@ func (h *AuthHandler) AddPassword(c *gin.Context) {
 func (h *AuthHandler) ChangeUsername(c *gin.Context) {
 	token, ok := bearerToken(c.GetHeader("Authorization"))
 	if !ok {
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
+		response.FailCode(c, response.CodeInvalidSession)
 		return
 	}
 	var req changeUsernameRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, "username is required")
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username."})
 		return
 	}
 	user, err := h.service.ChangeUsername(c.Request.Context(), token, req.Username)
 	if err != nil {
-		writeAuthError(c, err)
+		response.Fail(c, err)
 		return
 	}
 	response.Success(c, user)
@@ -339,63 +337,4 @@ func bearerToken(header string) (string, bool) {
 		return "", false
 	}
 	return token, true
-}
-
-func writeAuthError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, service.ErrUsernameTaken):
-		response.Error(c, http.StatusConflict, "username is already taken")
-	case errors.Is(err, service.ErrEmailTaken):
-		response.Error(c, http.StatusConflict, "email is already in use")
-	case errors.Is(err, service.ErrInvalidSignIn):
-		response.Error(c, http.StatusUnauthorized, "invalid email or password")
-	case errors.Is(err, service.ErrInvalidSession):
-		response.Error(c, http.StatusUnauthorized, "invalid or expired session")
-	case errors.Is(err, service.ErrSessionRevoked):
-		response.Error(c, http.StatusUnauthorized, "session was revoked, sign in again")
-	case errors.Is(err, service.ErrUserNotFound):
-		response.Error(c, http.StatusNotFound, "user not found")
-	case errors.Is(err, service.ErrEmailNotVerified):
-		response.Error(c, http.StatusForbidden, "email is not verified, check your inbox for the code")
-	case errors.Is(err, service.ErrInvalidChallenge):
-		response.Error(c, http.StatusBadRequest, "invalid or expired code")
-	case errors.Is(err, service.ErrChallengeLocked):
-		response.Error(c, http.StatusTooManyRequests, "too many attempts, request a new code")
-	case errors.Is(err, service.ErrNoPendingVerify):
-		response.Error(c, http.StatusNotFound, "no pending verification for this email")
-	case errors.Is(err, service.ErrAlreadyVerified):
-		response.Error(c, http.StatusBadRequest, "email is already verified")
-	case errors.Is(err, service.ErrResendTooSoon):
-		response.Error(c, http.StatusTooManyRequests, "verification code was just sent, wait a minute")
-	case errors.Is(err, service.ErrResendLimit):
-		response.Error(c, http.StatusTooManyRequests, "too many codes requested, try again later")
-	case errors.Is(err, service.ErrSocialMisconfigured):
-		response.Error(c, http.StatusServiceUnavailable, "social sign-in is not configured")
-	case errors.Is(err, service.ErrSocialNoEmail):
-		response.Error(c, http.StatusBadRequest, "no Email came with this Social sign-in")
-	case errors.Is(err, service.ErrSocialUnverified):
-		response.Error(c, http.StatusForbidden, "this Email is not verified by the provider")
-	case errors.Is(err, service.ErrSocialConflict):
-		response.Error(c, http.StatusConflict, "a User with this Email already exists, sign in with your password first")
-	case errors.Is(err, service.ErrSocialTokenInvalid):
-		response.Error(c, http.StatusUnauthorized, "invalid social token")
-	case errors.Is(err, service.ErrSocialUnavailable):
-		response.Error(c, http.StatusBadGateway, "could not verify social token")
-	case errors.Is(err, service.ErrUsernameAlreadySet):
-		response.Error(c, http.StatusConflict, "username is already set")
-	case errors.Is(err, service.ErrPasswordAlreadySet):
-		response.Error(c, http.StatusConflict, "password is already set, use reset instead")
-	case errors.Is(err, service.ErrValidation):
-		response.Error(c, http.StatusBadRequest, validationMessage(err))
-	default:
-		response.Fail(c, http.StatusInternalServerError, "something went wrong", err)
-	}
-}
-
-func validationMessage(err error) string {
-	var validation service.ValidationError
-	if errors.As(err, &validation) {
-		return validation.Detail
-	}
-	return "invalid request"
 }
