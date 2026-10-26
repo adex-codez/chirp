@@ -3,6 +3,7 @@ package router
 import (
 	"backend/internal/config"
 	"backend/internal/handler"
+	"backend/internal/mail"
 	"backend/internal/middleware"
 	"backend/internal/repository"
 	"backend/internal/service"
@@ -10,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig) (*gin.Engine, error) {
+func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig, mailCfg config.MailConfig) (*gin.Engine, error) {
 	gin.SetMode(cfg.Mode)
 
 	router := gin.New()
@@ -30,6 +31,7 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig)
 		authCfg.DevExposeCodes,
 		authCfg.AppleAudience,
 		authCfg.GoogleAudiences,
+		mail.NewClient(mailCfg.SendlibAPIKey, mailCfg.SendlibBaseURL, mailCfg.SendlibFrom),
 	)
 	auth := handler.NewAuthHandler(authService)
 	authGroup := router.Group("/auth")

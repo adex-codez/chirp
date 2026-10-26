@@ -10,8 +10,8 @@ import (
 
 // NewVerificationCode returns a human-typable 6-digit code and its hash.
 // Only the hash is stored; the code travels to the User through the
-// verification channel (or the dev-only response field until a mail
-// sender exists).
+// transactional mail sender (and the dev-only response field outside
+// release builds).
 func NewVerificationCode() (code, hash string, err error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(900000))
 	if err != nil {
