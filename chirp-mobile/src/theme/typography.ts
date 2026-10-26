@@ -30,13 +30,13 @@ export const type = {
 } as const satisfies Record<string, TextStyle>;
 
 /*
- * Display + band faces — the native side of `--font-display` /
- * `--font-band` in `src/global.css`. Display (field-guide serif) is for
- * night-header headlines only; band (mono) is for kickers, codes, and
- * Username bands. Body text stays on the system font via HeroUI.
+ * Display + band faces. Display (field-guide serif) is for night-header
+ * headlines only; band (mono) is for kickers, codes, and Username bands.
+ * Body text stays on the system font via HeroUI.
  *
  * React Native takes one family name per platform, not a CSS stack, so
- * these pick the native equivalent of the stack rather than carrying it.
+ * these are the only font definitions; `global.css` carries no font
+ * tokens.
  */
 export const fontStack = {
   display: Platform.select({

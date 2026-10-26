@@ -40,6 +40,7 @@ export default function SignIn() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!isBusy}
             placeholder="you@example.com"
           />
           <FieldInput
@@ -47,6 +48,7 @@ export default function SignIn() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            editable={!isBusy}
             placeholder="Your password"
           />
           {error ? (

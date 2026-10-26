@@ -60,18 +60,18 @@ Dawn chorus accents (banding-station palette, mirror `--color-*` in
 
 | Token | Hex | Use |
 |---|---|---|
-| `night` | `#071627` | auth header wash |
+| `night` | `#071627` | auth header wash, home logo plate |
 | `dawn.DEFAULT` | `#FFC247` | songline bars, band rivets, focus rings — the single signature |
 | `dawn.deep` | `#E89B2E` | pressed gold |
 
 Verified states use HeroUI's `success` token through
 `useThemeColor("success")`; do not mint a second green.
 
-Type families (`fontStack` → `--font-*`): `display` is a field-guide
-serif for night-header headlines only; `band` is mono for kickers,
-codes, and Username bands. Body stays on HeroUI's system font. React
-Native takes one family per platform, so `fontStack` picks the native
-equivalent of each CSS stack rather than carrying the stack itself.
+Type families (`fontStack`): `display` is a field-guide serif for
+night-header headlines only; `band` is mono for kickers, codes, and
+Username bands. Body stays on HeroUI's system font. React Native takes
+one family per platform, so `typography.ts` is the only font definition
+and `global.css` carries no font tokens.
 
 Signature components in `src/components/`: `AuthShell` (night band +
 step meter), `Songline` (sonogram divider/progress), `FieldInput`
@@ -182,9 +182,10 @@ Reanimated or CSS transitions.
 
 ## Components
 
-Shared primitives live in `src/components/` (currently `chirp-logo`;
-text comes from HeroUI's `Typography`). Every new primitive defines
-explicitly:
+Shared primitives live in `src/components/`: `chirp-logo`, `auth-shell`,
+`band-chip`, `field-input`, `provider-marks`, `safe-area-view`, and
+`songline`. Text comes from HeroUI's `Typography`. Every new primitive
+defines explicitly:
 
 - **Variants** — visual intent (`primary`, `secondary`, `ghost`,
   `destructive`). Add one only when a real screen needs it.

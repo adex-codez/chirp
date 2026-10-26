@@ -20,6 +20,10 @@ type SonglineProps = {
 
 const DEFAULT_LEVELS = [8, 16, 26, 14, 32, 22, 38, 18, 28, 12, 24, 34, 16, 26, 10, 20, 30, 14, 22, 8];
 
+// One-off: the sonogram is always drawn on the night header, so the
+// inactive bars are white at low opacity rather than a theme surface.
+const INACTIVE_BAR = "#FFFFFF";
+
 export function Songline({ levels = DEFAULT_LEVELS, active, height = 40 }: SonglineProps) {
   const barWidth = 6;
   const gap = 5;
@@ -45,7 +49,7 @@ export function Songline({ levels = DEFAULT_LEVELS, active, height = 40 }: Songl
             width={barWidth}
             height={h}
             rx={3}
-            fill={isOn ? dawn.DEFAULT : "#FFFFFF"}
+            fill={isOn ? dawn.DEFAULT : INACTIVE_BAR}
             opacity={isOn ? 1 : 0.22}
           />
         );

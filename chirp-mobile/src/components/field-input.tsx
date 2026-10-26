@@ -22,10 +22,11 @@ export function FieldInput({
   onBlur,
   className,
   accessibilityLabel,
+  placeholderTextColor,
   ...rest
 }: FieldInputProps) {
   const [focused, setFocused] = useState(false);
-  const placeholderColor = useThemeColor("field-placeholder");
+  const themePlaceholder = useThemeColor("field-placeholder");
   return (
     <View className="gap-1.5">
       <Typography
@@ -47,7 +48,7 @@ export function FieldInput({
           setFocused(false);
           onBlur?.(e);
         }}
-        placeholderTextColor={placeholderColor}
+        placeholderTextColor={placeholderTextColor ?? themePlaceholder}
         className={`rounded-field border-2 bg-surface px-4 py-3 text-base text-foreground ${
           focused ? "border-dawn" : "border-separator"
         } ${className ?? ""}`}

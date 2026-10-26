@@ -40,6 +40,7 @@ export default function SignUp() {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
+            editable={!isBusy}
             placeholder="e.g. river_song"
             hint="3–20 characters: letters, numbers, underscore, dot."
           />
@@ -49,6 +50,7 @@ export default function SignUp() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!isBusy}
             placeholder="you@example.com"
             hint="We send one code here. Nothing else happens until you enter it."
           />
@@ -57,6 +59,7 @@ export default function SignUp() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            editable={!isBusy}
             placeholder="8-15 chars, upper, lower, number & symbol"
           />
           {error ? (

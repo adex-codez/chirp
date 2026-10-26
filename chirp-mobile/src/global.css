@@ -34,9 +34,8 @@
   --color-dawn: #ffc247;
   --color-dawn-deep: #e89b2e;
 
-  /* Type families: field-guide serif for display, mono for band data. */
-  --font-display: Georgia, "Palatino Linotype", Palatino, serif;
-  --font-band: Menlo, Consolas, "Courier New", monospace;
+  /* Type families live in `theme/typography.ts`; React Native takes one
+   * family per platform, so there is no CSS font token to mirror. */
 
   /* App motion tokens (ms). Use with Reanimated or CSS transitions. */
   --motion-fast: 150ms;
