@@ -7,14 +7,39 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 1. Install dependencies
 
    ```bash
-   npm install
+   bun install
    ```
 
 2. Start the app
 
    ```bash
-   npx expo start
+   bun start
    ```
+
+`bun start` opens the dev client on a tunnel, so the phone needs no cable
+and no local network route to your machine. It expects the development
+build to be installed already.
+
+### Build the development client
+
+The first install, and any change to native code or config, needs a
+build. Both platforms go through EAS, which means iOS builds work from
+Windows too.
+
+```bash
+bun dev-build            # android and ios
+bun dev-build:android
+bun dev-build:ios
+```
+
+Install the artifact EAS links when the build finishes, then run
+`bun start`. The iOS simulator needs the simulator profile instead.
+
+```bash
+bunx eas build --profile development-simulator --platform ios
+```
+
+`npm run` runs the same scripts if Bun is not installed.
 
 In the output, you'll find options to open the app in a
 
