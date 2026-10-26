@@ -277,7 +277,7 @@ func (q *Queries) GetLatestVerificationChallenge(ctx context.Context, arg GetLat
 }
 
 const getSessionByRefreshHash = `-- name: GetSessionByRefreshHash :one
-SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '') AS replaced_by, created_at
+SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, replaced_by::text AS replaced_by, created_at
 FROM sessions
 WHERE refresh_hash = $1
 LIMIT 1
@@ -289,7 +289,7 @@ type GetSessionByRefreshHashRow struct {
 	RefreshHash string             `json:"refresh_hash"`
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
-	ReplacedBy  interface{}        `json:"replaced_by"`
+	ReplacedBy  pgtype.Text        `json:"replaced_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 

@@ -57,27 +57,50 @@ type LinkedIdentity struct {
 	Email       string
 }
 
-// AuthRepository owns User, challenge, session, and linked-identity persistence.
-type AuthRepository interface {
+// UserRepository owns User persistence: lookup, creation, verification
+// state, and credential changes.
+type UserRepository interface {
 	CreateUser(ctx context.Context, username, email, passwordHash string) (AuthUser, error)
 	GetUserByEmail(ctx context.Context, email string) (AuthUser, error)
 	GetUserByUsername(ctx context.Context, username string) (AuthUser, error)
 	GetUserByID(ctx context.Context, id string) (AuthUser, error)
 	MarkUserVerified(ctx context.Context, id string) error
+	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
+	UpdatePassword(ctx context.Context, id, passwordHash string) error
+}
+
+// ChallengeRepository owns single-use verification-code grants.
+type ChallengeRepository interface {
 	CreateVerificationChallenge(ctx context.Context, userID, purpose, codeHash string, expiresAt time.Time) (VerificationChallenge, error)
 	GetLatestVerificationChallenge(ctx context.Context, userID, purpose string) (VerificationChallenge, error)
 	CountRecentVerificationChallenges(ctx context.Context, userID, purpose string, since time.Time) (int, error)
 	ConsumeVerificationChallenge(ctx context.Context, id string) error
 	IncrementChallengeAttempts(ctx context.Context, id string) error
+}
+
+// SessionRepository owns refresh grants: issuance, rotation, and revocation.
+type SessionRepository interface {
 	CreateSession(ctx context.Context, userID, refreshHash string, expiresAt time.Time, deviceLabel string) (string, error)
 	GetSessionByRefreshHash(ctx context.Context, refreshHash string) (Session, error)
 	ReplaceSession(ctx context.Context, id, replacedBy string) error
 	RevokeSession(ctx context.Context, id string) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
+}
+
+// IdentityRepository owns provider identities linked to Users.
+type IdentityRepository interface {
 	GetIdentity(ctx context.Context, provider, providerSub string) (LinkedIdentity, error)
 	CreateIdentity(ctx context.Context, userID, provider, providerSub, email string) (LinkedIdentity, error)
-	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
-	UpdatePassword(ctx context.Context, id, passwordHash string) error
+}
+
+// AuthRepository is the full persistence contract: the four narrow stores
+// above. PostgresAuthRepository implements all of them; consumers depend on
+// the narrow store they actually use.
+type AuthRepository interface {
+	UserRepository
+	ChallengeRepository
+	SessionRepository
+	IdentityRepository
 }
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
@@ -256,7 +279,7 @@ func (r *PostgresAuthRepository) GetSessionByRefreshHash(ctx context.Context, re
 		UserID:     row.UserID,
 		ExpiresAt:  row.ExpiresAt.Time,
 		Revoked:    row.RevokedAt.Valid,
-		ReplacedBy: replacedByString(row.ReplacedBy),
+		ReplacedBy: row.ReplacedBy.String,
 	}, nil
 }
 
@@ -385,18 +408,4 @@ func mapNoRows(err error) error {
 		return ErrAuthNotFound
 	}
 	return err
-}
-
-// replacedByString decodes the replaced_by text column, which sqlc types as
-// interface{} since the text cast hides the concrete type from it. The pgx
-// driver returns it as a string.
-func replacedByString(v interface{}) string {
-	switch s := v.(type) {
-	case string:
-		return s
-	case []byte:
-		return string(s)
-	default:
-		return ""
-	}
 }
