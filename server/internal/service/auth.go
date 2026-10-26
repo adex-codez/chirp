@@ -62,13 +62,13 @@ var (
 	ErrPasswordAlreadySet  = errors.New("password is already set, use reset instead")
 )
 
-// ValidationError carries the field-level detail behind ErrValidation so the
-// transport can report it without parsing error strings.
+// ValidationError carries per-field messages behind ErrValidation so the
+// transport can report them without parsing error strings.
 type ValidationError struct {
-	Detail string
+	Fields map[string]string
 }
 
-func (e ValidationError) Error() string { return "validation failed: " + e.Detail }
+func (e ValidationError) Error() string { return "validation failed" }
 
 func (e ValidationError) Is(target error) bool { return target == ErrValidation }
 
@@ -77,7 +77,7 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_.]{3,20}$`)
 func validateUsername(username string) error {
 	username = strings.TrimSpace(username)
 	if !usernamePattern.MatchString(username) {
-		return ValidationError{Detail: "username must be 3-20 characters of letters, numbers, underscore, or dot"}
+		return ValidationError{Fields: map[string]string{"username": "username must be 3-20 characters of letters, numbers, underscore, or dot"}}
 	}
 	return nil
 }
@@ -517,7 +517,7 @@ func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, 
 		}
 		identity, err = auth.VerifyGoogleIDToken(ctx, now, idToken, s.googleAudiences)
 	default:
-		return auth.SocialIdentity{}, ValidationError{Detail: "provider must be apple or google"}
+		return auth.SocialIdentity{}, ValidationError{Fields: map[string]string{"provider": "provider must be apple or google"}}
 	}
 	if err != nil {
 		// Keep provider verification failures behind service sentinels so
@@ -769,23 +769,23 @@ func publicUser(user repository.AuthUser) PublicUser {
 
 func validatePassword(password string) error {
 	if len(password) < 8 || len(password) > 15 {
-		return ValidationError{Detail: "password must be 8-15 characters"}
+		return ValidationError{Fields: map[string]string{"password": "password must be 8-15 characters"}}
 	}
 	if !passwordUpperPattern.MatchString(password) ||
 		!passwordLowerPattern.MatchString(password) ||
 		!passwordDigitPattern.MatchString(password) ||
 		!passwordSpecialPattern.MatchString(password) {
-		return ValidationError{Detail: "password must include an uppercase letter, a lowercase letter, a number, and a special character"}
+		return ValidationError{Fields: map[string]string{"password": "password must include an uppercase letter, a lowercase letter, a number, and a special character"}}
 	}
 	return nil
 }
 
 func validateEmail(email string) error {
 	if len(email) == 0 || len(email) > 254 {
-		return ValidationError{Detail: "email must be 1-254 characters"}
+		return ValidationError{Fields: map[string]string{"email": "email must be 1-254 characters"}}
 	}
 	if _, err := netmail.ParseAddress(email); err != nil {
-		return ValidationError{Detail: "email must be a valid address"}
+		return ValidationError{Fields: map[string]string{"email": "email must be a valid address"}}
 	}
 	return nil
 }
