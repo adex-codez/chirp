@@ -32,6 +32,10 @@ bun dev-build:android
 bun dev-build:ios
 ```
 
+Sign in with `eas login` once so the CLI has an Expo account. Each
+script is a plain `eas build --profile development` call, so `eas`
+flags still apply: `bun dev-build:ios -- --no-wait`.
+
 Install the artifact EAS links when the build finishes, then run
 `bun start`. The iOS simulator needs the simulator profile instead.
 

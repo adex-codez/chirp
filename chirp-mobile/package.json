@@ -48,9 +48,9 @@
   },
   "scripts": {
     "start": "expo start --dev-client --tunnel",
-    "dev-build": "node ./scripts/dev-build.mjs",
-    "dev-build:android": "node ./scripts/dev-build.mjs --platform android",
-    "dev-build:ios": "node ./scripts/dev-build.mjs --platform ios",
+    "dev-build": "eas build --profile development --platform all",
+    "dev-build:android": "eas build --profile development --platform android",
+    "dev-build:ios": "eas build --profile development --platform ios",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
