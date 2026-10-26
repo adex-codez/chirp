@@ -1,8 +1,10 @@
 package response
 
 import (
+	"log/slog"
 	"net/http"
 
+	"backend/internal/requestid"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,4 +20,15 @@ func Success(c *gin.Context, data any) {
 
 func Error(c *gin.Context, status int, message string) {
 	c.JSON(status, Response{Success: false, Error: message})
+}
+
+// Fail writes a 5xx response whose cause must not reach the client. The cause
+// is logged once with the request ID so operators can trace the failure.
+func Fail(c *gin.Context, status int, message string, cause error) {
+	slog.ErrorContext(c.Request.Context(), "request failed",
+		"request_id", requestid.FromContext(c.Request.Context()),
+		"status", status,
+		"error", cause,
+	)
+	Error(c, status, message)
 }
