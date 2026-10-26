@@ -41,6 +41,7 @@ export default function Verify() {
           onChangeText={setCode}
           keyboardType="number-pad"
           maxLength={6}
+          editable={!isBusy}
           placeholder="123456"
           hint="Six digits. Keep this screen open while you check your inbox."
         />
