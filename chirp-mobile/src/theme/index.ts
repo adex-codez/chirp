@@ -5,7 +5,7 @@
  * inline with a comment saying why).
  */
 
-export { brand, primary, accent, night, dawn, lichen } from "./colors";
+export { brand, primary, accent, night, dawn } from "./colors";
 export { spacing, layout } from "./spacing";
 export { type, fontStack } from "./typography";
 export type { TypeVariant } from "./typography";

@@ -63,11 +63,15 @@ Dawn chorus accents (banding-station palette, mirror `--color-*` in
 | `night` | `#071627` | auth header wash |
 | `dawn.DEFAULT` | `#FFC247` | songline bars, band rivets, focus rings — the single signature |
 | `dawn.deep` | `#E89B2E` | pressed gold |
-| `lichen` | `#1E6F5C` | verified states only |
 
-Type stacks (`fontStack` → `--font-*`): `display` is Georgia/Palatino
-serif for night-header headlines only; `band` is Menlo/Consolas mono
-for kickers, codes, and Username bands. Body stays on HeroUI system.
+Verified states use HeroUI's `success` token through
+`useThemeColor("success")`; do not mint a second green.
+
+Type families (`fontStack` → `--font-*`): `display` is a field-guide
+serif for night-header headlines only; `band` is mono for kickers,
+codes, and Username bands. Body stays on HeroUI's system font. React
+Native takes one family per platform, so `fontStack` picks the native
+equivalent of each CSS stack rather than carrying the stack itself.
 
 Signature components in `src/components/`: `AuthShell` (night band +
 step meter), `Songline` (sonogram divider/progress), `FieldInput`

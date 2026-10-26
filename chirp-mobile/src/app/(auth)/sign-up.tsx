@@ -79,7 +79,7 @@ export default function SignUp() {
         <View className="flex-row items-center justify-center gap-1.5">
           <Typography color="muted">Have an account?</Typography>
           <Link href="/sign-in" asChild>
-            <Typography weight="bold" className="text-accent">
+            <Typography accessibilityRole="link" weight="bold" className="py-3 text-accent">
               Sign in
             </Typography>
           </Link>

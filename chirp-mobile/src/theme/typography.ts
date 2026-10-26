@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { TextStyle } from "react-native";
 
 /*
@@ -29,14 +30,25 @@ export const type = {
 } as const satisfies Record<string, TextStyle>;
 
 /*
- * Display + band stacks — TS mirror of `--font-display` / `--font-band`
- * in `src/global.css`. Display (field-guide serif) is for night-header
- * headlines only; band (mono) is for kickers, codes, and Username bands.
- * Body text stays on the system stack via HeroUI defaults.
+ * Display + band faces — the native side of `--font-display` /
+ * `--font-band` in `src/global.css`. Display (field-guide serif) is for
+ * night-header headlines only; band (mono) is for kickers, codes, and
+ * Username bands. Body text stays on the system font via HeroUI.
+ *
+ * React Native takes one family name per platform, not a CSS stack, so
+ * these pick the native equivalent of the stack rather than carrying it.
  */
 export const fontStack = {
-  display: "Georgia, 'Palatino Linotype', Palatino, serif",
-  band: "Menlo, Consolas, 'Courier New', monospace",
+  display: Platform.select({
+    ios: "Georgia",
+    android: "serif",
+    default: "Georgia",
+  }),
+  band: Platform.select({
+    ios: "Menlo",
+    android: "monospace",
+    default: "monospace",
+  }),
 } as const;
 
 export type TypeVariant = keyof typeof type;

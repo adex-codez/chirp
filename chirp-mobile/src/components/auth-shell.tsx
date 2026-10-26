@@ -36,13 +36,13 @@ export function AuthShell({ kicker, title, intro, step, of = 3, children }: Auth
             {kicker}
           </Typography>
         </View>
-        <Typography
+        <Typography.Heading
           style={{ fontFamily: fontStack.display, fontStyle: "italic" }}
           type="h1"
           className="mt-5 text-white"
         >
           {title}
-        </Typography>
+        </Typography.Heading>
         {intro ? (
           <Typography.Paragraph className="mt-2 text-brand-200">
             {intro}

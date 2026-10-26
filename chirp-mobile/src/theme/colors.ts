@@ -34,15 +34,13 @@ export const night = "#071627" as const;
 
 /**
  * Dawn chorus accents — TS mirror of `--color-dawn` / `--color-dawn-deep`
- * / `--color-lichen` in `src/global.css`. Gold is the single signature
- * (sonogram, band rivets); lichen marks verified states only.
+ * in `src/global.css`. Gold is the single signature (sonogram, band
+ * rivets). Verified states use HeroUI's `success` token.
  */
 export const dawn = {
   DEFAULT: "#FFC247",
   deep: "#E89B2E",
 } as const;
-
-export const lichen = "#1E6F5C" as const;
 
 /**
  * Accent pairs per color scheme. Mirrors the `--accent` /

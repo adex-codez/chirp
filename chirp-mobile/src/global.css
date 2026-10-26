@@ -28,14 +28,13 @@
   /*
    * Dawn chorus accents — the banding-station palette. Beak gold is the
    * single signature: sonogram lines, band rivets, verified seals.
-   * Lichen marks verified states only. Night is the auth header wash.
+   * Night is the auth header wash. Verified states use HeroUI's success.
    */
   --color-night: #071627;
   --color-dawn: #ffc247;
   --color-dawn-deep: #e89b2e;
-  --color-lichen: #1e6f5c;
 
-  /* Type stacks: field-guide serif for display, mono for band data. */
+  /* Type families: field-guide serif for display, mono for band data. */
   --font-display: Georgia, "Palatino Linotype", Palatino, serif;
   --font-band: Menlo, Consolas, "Courier New", monospace;
 

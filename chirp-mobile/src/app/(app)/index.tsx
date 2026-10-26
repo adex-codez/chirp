@@ -25,7 +25,9 @@ export default function Index() {
       <ScrollView className="flex-1" contentContainerClassName="grow gap-6 px-6 py-8">
         <View className="gap-3">
           <View className="flex-row items-center justify-between">
-            <ChirpLogo size={44} />
+            <View className="items-center justify-center rounded-full bg-night p-2">
+              <ChirpLogo size={40} monochrome />
+            </View>
             <Typography
               style={{ fontFamily: fontStack.band, letterSpacing: 2 }}
               type="body-xs"
@@ -35,11 +37,14 @@ export default function Index() {
               FIRST LIGHT
             </Typography>
           </View>
-          <Typography style={{ fontFamily: fontStack.display, fontStyle: "italic" }} type="h1">
+          <Typography.Heading
+            style={{ fontFamily: fontStack.display, fontStyle: "italic" }}
+            type="h1"
+          >
             Your chorus is ready.
-          </Typography>
+          </Typography.Heading>
           {sessionStatus === "authenticated" && sessionUser ? (
-            <BandChip username={sessionUser.username} verified />
+            <BandChip username={sessionUser.username} verified={sessionUser.verified} />
           ) : null}
           <Songline height={28} />
           <Typography.Paragraph color="muted">

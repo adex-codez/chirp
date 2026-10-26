@@ -55,11 +55,14 @@ export default function Settings() {
           >
             YOUR BAND
           </Typography>
-          <Typography style={{ fontFamily: fontStack.display, fontStyle: "italic" }} type="h1">
+          <Typography.Heading
+            style={{ fontFamily: fontStack.display, fontStyle: "italic" }}
+            type="h1"
+          >
             Settings.
-          </Typography>
+          </Typography.Heading>
           {user ? (
-            <BandChip username={user.username} verified />
+            <BandChip username={user.username} verified={user.verified} />
           ) : (
             <Typography.Paragraph color="muted">Manage this User.</Typography.Paragraph>
           )}

@@ -7,6 +7,9 @@ import { dawn } from "@/theme/colors";
  * shaped like a spectrogram slice, used as divider, step meter, and
  * verified-seal echo. Bars are data, not decoration: `levels` encodes
  * the shape, `active` fills progress through the auth sequence.
+ *
+ * Decorative for screen readers. The step count next to it is already
+ * text, so announcing the sonogram too would repeat the same fact.
  */
 
 type SonglineProps = {
@@ -27,8 +30,8 @@ export function Songline({ levels = DEFAULT_LEVELS, active, height = 40 }: Songl
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      accessibilityRole="image"
-      accessibilityLabel="Chirp sonogram"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
     >
       {levels.map((level, i) => {
         const h = Math.max(4, Math.min(height, level));

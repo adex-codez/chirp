@@ -73,14 +73,12 @@ export default function SignIn() {
 
         <View className="items-center gap-0.5">
           <Link href="/forgot-password" asChild>
-            <Button variant="ghost" size="sm">
-              Forgot password?
-            </Button>
+            <Button variant="ghost">Forgot password?</Button>
           </Link>
           <View className="flex-row items-center justify-center gap-1.5">
             <Typography color="muted">Don&apos;t have an account?</Typography>
             <Link href="/sign-up" asChild>
-              <Typography weight="bold" className="text-accent">
+              <Typography accessibilityRole="link" weight="bold" className="py-3 text-accent">
                 Sign up
               </Typography>
             </Link>

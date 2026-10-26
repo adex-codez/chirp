@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TextInput, View, type TextInputProps } from "react-native";
+import { useThemeColor } from "heroui-native/hooks";
 import { Typography } from "heroui-native/text";
 import { fontStack } from "@/theme/typography";
 
@@ -14,8 +15,17 @@ type FieldInputProps = TextInputProps & {
   hint?: string;
 };
 
-export function FieldInput({ label, hint, onFocus, onBlur, ...rest }: FieldInputProps) {
+export function FieldInput({
+  label,
+  hint,
+  onFocus,
+  onBlur,
+  className,
+  accessibilityLabel,
+  ...rest
+}: FieldInputProps) {
   const [focused, setFocused] = useState(false);
+  const placeholderColor = useThemeColor("field-placeholder");
   return (
     <View className="gap-1.5">
       <Typography
@@ -28,6 +38,7 @@ export function FieldInput({ label, hint, onFocus, onBlur, ...rest }: FieldInput
       </Typography>
       <TextInput
         {...rest}
+        accessibilityLabel={accessibilityLabel ?? label}
         onFocus={(e) => {
           setFocused(true);
           onFocus?.(e);
@@ -36,10 +47,10 @@ export function FieldInput({ label, hint, onFocus, onBlur, ...rest }: FieldInput
           setFocused(false);
           onBlur?.(e);
         }}
-        placeholderTextColor="#94B0C8"
-        className={`rounded-[14px] border-2 bg-surface px-4 py-3 text-[16px] text-foreground ${
+        placeholderTextColor={placeholderColor}
+        className={`rounded-field border-2 bg-surface px-4 py-3 text-base text-foreground ${
           focused ? "border-dawn" : "border-separator"
-        }`}
+        } ${className ?? ""}`}
       />
       {hint ? <Typography.Paragraph color="muted">{hint}</Typography.Paragraph> : null}
     </View>
