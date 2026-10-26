@@ -1,13 +1,31 @@
+import type { ApiCode } from "./api-codes";
+import { isApiCode } from "./api-codes";
+import { messageFor } from "./api-messages";
+
 const baseUrl =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
   "http://localhost:8080";
 
 export class ApiError extends Error {
   status: number;
+  readonly code?: ApiCode;
+  readonly fields?: Record<string, string>;
+  readonly requestId?: string;
 
-  constructor(status: number, message: string) {
+  constructor(
+    status: number,
+    message: string,
+    details: {
+      code?: ApiCode;
+      fields?: Record<string, string>;
+      requestId?: string;
+    } = {},
+  ) {
     super(message);
     this.status = status;
+    this.code = details.code;
+    this.fields = details.fields;
+    this.requestId = details.requestId;
   }
 }
 
@@ -15,15 +33,23 @@ type ApiEnvelope<T> = {
   success: boolean;
   data?: T;
   error?: string;
+  code?: string;
+  fields?: Record<string, string>;
 };
 
 async function readEnvelope<T>(res: Response): Promise<T> {
   const envelope = (await res.json()) as ApiEnvelope<T>;
   if (!res.ok || !envelope.success) {
-    throw new ApiError(
-      res.status,
-      envelope.error ?? "Something went wrong. Try again.",
-    );
+    const rawCode =
+      typeof envelope.code === "string" ? envelope.code : undefined;
+    // Drop a code this client does not know, so screens only branch on codes
+    // the app ships.
+    const code = rawCode && isApiCode(rawCode) ? rawCode : undefined;
+    throw new ApiError(res.status, messageFor(res.status, code), {
+      code,
+      fields: envelope.fields,
+      requestId: res.headers.get("x-request-id") ?? undefined,
+    });
   }
   return envelope.data as T;
 }

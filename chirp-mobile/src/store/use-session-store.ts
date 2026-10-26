@@ -318,7 +318,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         const message = messageOf(error);
         set({ error: message, isBusy: false });
         // An unverified sign-in parks the person at verification.
-        if (message.toLowerCase().includes("not verified")) {
+        if (error instanceof ApiError && error.code === "email_not_verified") {
           set({ status: "pending-verification", pendingEmail: email });
           await persist();
         }
