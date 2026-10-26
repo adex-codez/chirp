@@ -40,7 +40,7 @@ Commands:
   migrate-up              Run pending migrations
   migrate-down            Rollback the last migration
   migrate-status          Check migration status
-  generate                Generate sqlc code
+  generate                Generate sqlc code and the mobile API codes
   tidy                    Tidy go modules
 
 Examples:
