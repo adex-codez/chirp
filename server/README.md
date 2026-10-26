@@ -86,6 +86,22 @@ Expected response:
 
 If a `ServerConfig` is constructed without timeout values, the server falls back to a 10-second shutdown timeout. The application entrypoint also restores the 10-second startup timeout before connecting to PostgreSQL.
 
+## Logging
+
+The server writes one structured line per event to stdout. Three environment variables control the output:
+
+| Variable | Values | Default | Purpose |
+| --- | --- | --- | --- |
+| `LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | Minimum severity to emit. |
+| `LOG_FORMAT` | `json`, `text` | `json` | Use `json` for a log collector and `text` for a terminal. |
+| `APP_ENV` | any string | `development` | Recorded on every line as `env`. |
+
+Every line also carries `service` and `version`. If `LOG_LEVEL` or `LOG_FORMAT` is invalid, the server exits and reports the error in a JSON line.
+
+Each request logs one line with `request_id`, `method`, `path`, `client_ip`, `status`, and `duration_ms`. The status sets the level: 5xx logs at error, 4xx at warn, and everything else at info. The response echoes the ID in `X-Request-Id`, and a client can supply its own ID in that header. Successful `/health` and `/ready` probes are not logged. A failing probe is.
+
+A 5xx response logs its cause once as `request failed` with the request ID. A panic logs `panic recovered` with the request fields and a stack trace.
+
 ## Tasks
 
 On PowerShell, use `task.ps1` for common development commands:
@@ -137,3 +153,9 @@ go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
 ```
 
 The `Makefile` provides equivalent commands where GNU Make is available: `make run`, `make migrate-up`, `make migrate-down`, and `make sqlc`.
+
+## API error codes
+
+`internal/response/codes.go` is the only list of machine-readable error codes. `internal/response/failures.go` holds the HTTP status and default message for each code, and `From` maps service errors to codes.
+
+The mobile client's copy is generated. `.\task.ps1 generate` writes `chirp-mobile/src/lib/api-codes.ts`, and `go test ./...` fails when that file is stale.

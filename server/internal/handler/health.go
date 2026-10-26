@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-	"net/http"
+	"log/slog"
 
+	"backend/internal/requestid"
 	"backend/internal/response"
 	"backend/internal/service"
 	"github.com/gin-gonic/gin"
@@ -27,9 +28,19 @@ func (h *HealthHandler) Live(c *gin.Context) {
 }
 
 func (h *HealthHandler) Ready(c *gin.Context) {
-	status, err := h.service.Ready(c.Request.Context())
+	ctx := c.Request.Context()
+
+	status, err := h.service.Ready(ctx)
 	if err != nil {
-		response.Error(c, http.StatusServiceUnavailable, "service unavailable")
+		// Log the cause before responding: the client only ever sees a generic
+		// message, so without this line a database outage is indistinguishable
+		// from a timeout or a rejected connection.
+		slog.ErrorContext(ctx, "readiness check failed",
+			"request_id", requestid.FromContext(ctx),
+			"error", err,
+		)
+
+		response.FailCode(c, response.CodeServiceUnavailable)
 		return
 	}
 

@@ -42,10 +42,10 @@ type MailConfig struct {
 // DevExposeCodes returns verification codes in API responses outside release
 // builds, alongside the transactional mail send.
 type AuthConfig struct {
-	JWTSecret        string
-	DevExposeCodes   bool
-	AppleAudience    string
-	GoogleAudiences  []string
+	JWTSecret       string
+	DevExposeCodes  bool
+	AppleAudience   string
+	GoogleAudiences []string
 }
 
 const (
@@ -53,9 +53,14 @@ const (
 	DefaultShutdownTimeout = 10 * time.Second
 )
 
+// LoadDotEnv reads .env into the process environment.
+func LoadDotEnv() error {
+	return godotenv.Load()
+}
+
 func Load() (Config, error) {
 	// Missing .env is fine: production takes configuration from the environment.
-	_ = godotenv.Load()
+	_ = LoadDotEnv()
 
 	port := 8080
 	if value := os.Getenv("PORT"); value != "" {

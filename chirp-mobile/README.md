@@ -16,9 +16,11 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    bun start
    ```
 
-`bun start` opens the dev client on a tunnel, so the phone needs no cable
-and no local network route to your machine. It expects the development
-build to be installed already.
+`bun start` serves the dev client over your local network, so the phone
+must share that network with your machine. It expects the development
+build to be installed already. Set `EXPO_PUBLIC_API_URL` to your machine's
+LAN address (for example `http://192.168.1.20:8080`) so the app can reach
+the API.
 
 ### Build the development client
 
