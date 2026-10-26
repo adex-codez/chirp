@@ -9,12 +9,22 @@ import (
 
 	"backend/internal/config"
 	"backend/internal/database"
+	"backend/internal/logging"
 	"backend/internal/router"
 	"backend/internal/server"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// Load .env first so LOG_LEVEL and LOG_FORMAT come from the same file as
+	// the rest of the configuration.
+	_ = config.LoadDotEnv()
+
+	logger, err := logging.New(logging.ConfigFromEnv())
+	if err != nil {
+		// Report through a bootstrap logger: the configured one is unusable.
+		slog.New(slog.NewJSONHandler(os.Stdout, nil)).Error("invalid log configuration", "error", err)
+		os.Exit(1)
+	}
 	slog.SetDefault(logger)
 
 	cfg, err := config.Load()
