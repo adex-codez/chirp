@@ -153,3 +153,9 @@ go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
 ```
 
 The `Makefile` provides equivalent commands where GNU Make is available: `make run`, `make migrate-up`, `make migrate-down`, and `make sqlc`.
+
+## API error codes
+
+`internal/response/codes.go` is the only list of machine-readable error codes. `internal/response/failures.go` holds the HTTP status and default message for each code, and `From` maps service errors to codes.
+
+The mobile client's copy is generated. `.\task.ps1 generate` writes `chirp-mobile/src/lib/api-codes.ts`, and `go test ./...` fails when that file is stale.
