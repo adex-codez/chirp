@@ -388,7 +388,7 @@ func writeAuthError(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrValidation):
 		response.Error(c, http.StatusBadRequest, validationMessage(err))
 	default:
-		response.Error(c, http.StatusInternalServerError, "something went wrong")
+		response.Fail(c, http.StatusInternalServerError, "something went wrong", err)
 	}
 }
 

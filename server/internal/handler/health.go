@@ -29,7 +29,7 @@ func (h *HealthHandler) Live(c *gin.Context) {
 func (h *HealthHandler) Ready(c *gin.Context) {
 	status, err := h.service.Ready(c.Request.Context())
 	if err != nil {
-		response.Error(c, http.StatusServiceUnavailable, "service unavailable")
+		response.Fail(c, http.StatusServiceUnavailable, "service unavailable", err)
 		return
 	}
 
