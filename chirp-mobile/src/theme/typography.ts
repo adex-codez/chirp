@@ -51,4 +51,10 @@ export const fontStack = {
   }),
 } as const;
 
+/** Mono, tracked: kickers, plate captions, meta, Username bands. */
+export const bandLabel: TextStyle = { fontFamily: fontStack.band, letterSpacing: 1.5 };
+
+/** Field-guide serif italic: screen titles only. */
+export const displayTitle: TextStyle = { fontFamily: fontStack.display, fontStyle: "italic" };
+
 export type TypeVariant = keyof typeof type;

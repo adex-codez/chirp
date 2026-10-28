@@ -1,11 +1,13 @@
 import { Button } from "heroui-native/button";
+import { InputOTP, REGEXP_ONLY_DIGITS } from "heroui-native/input-otp";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
-import { AuthShell } from "@/components/auth-shell";
-import { FieldInput } from "@/components/field-input";
+import { View } from "react-native";
 
+import { AuthShell } from "@/components/auth-shell";
+import { Notice } from "@/components/notice";
 import { useSessionStore } from "@/store/use-session-store";
+import { bandLabel } from "@/theme/typography";
 
 export default function Verify() {
   const [code, setCode] = useState("");
@@ -15,9 +17,10 @@ export default function Verify() {
   const verify = useSessionStore((state) => state.verify);
   const resendCode = useSessionStore((state) => state.resendCode);
 
-  const submit = async () => {
+  const submit = async (value: string) => {
+    if (value.length !== 6) return;
     try {
-      await verify(code.trim());
+      await verify(value);
     } catch {
       // Error text already lives in the store.
     }
@@ -33,30 +36,49 @@ export default function Verify() {
           : "Claim a Username first, then enter the code we send you."
       }
       step={2}
+      footer={
+        <Button variant="ghost" onPress={() => void resendCode()} isDisabled={isBusy}>
+          Resend code
+        </Button>
+      }
     >
-      <ScrollView className="flex-1" contentContainerClassName="grow gap-5 pb-8">
-        <FieldInput
-          label="Code"
-          value={code}
-          onChangeText={setCode}
-          keyboardType="number-pad"
-          maxLength={6}
-          editable={!isBusy}
-          placeholder="123456"
-          hint="Six digits. Keep this screen open while you check your inbox."
-        />
-        {error ? (
-          <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
-        ) : null}
-        <View className="gap-3">
-          <Button onPress={submit} isDisabled={isBusy}>
-            {isBusy ? "Verifying…" : "Verify and continue"}
-          </Button>
-          <Button variant="outline" onPress={() => resendCode()} isDisabled={isBusy}>
-            Resend code
-          </Button>
+      <View className="gap-4">
+        <View className="gap-2">
+          <Typography style={bandLabel} type="body-xs" weight="bold" className="text-muted">
+            CODE
+          </Typography>
+          <InputOTP
+            value={code}
+            onChange={setCode}
+            maxLength={6}
+            isInvalid={Boolean(error)}
+            isDisabled={isBusy}
+            pattern={REGEXP_ONLY_DIGITS}
+            onComplete={(value) => void submit(value)}
+            textInputProps={{ accessibilityLabel: "Six digit verification code" }}
+          >
+            <InputOTP.Group>
+              <InputOTP.Slot index={0} className="w-10" />
+              <InputOTP.Slot index={1} className="w-10" />
+              <InputOTP.Slot index={2} className="w-10" />
+            </InputOTP.Group>
+            <InputOTP.Separator />
+            <InputOTP.Group>
+              <InputOTP.Slot index={3} className="w-10" />
+              <InputOTP.Slot index={4} className="w-10" />
+              <InputOTP.Slot index={5} className="w-10" />
+            </InputOTP.Group>
+          </InputOTP>
         </View>
-      </ScrollView>
+        <Typography.Paragraph type="body-sm" color="muted">
+          Six digits. Keep this screen open while you check your inbox.
+        </Typography.Paragraph>
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+      </View>
+
+      <Button onPress={() => void submit(code)} isDisabled={isBusy}>
+        {isBusy ? "Verifying…" : "Verify and continue"}
+      </Button>
     </AuthShell>
   );
 }

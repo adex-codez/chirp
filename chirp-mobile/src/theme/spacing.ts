@@ -1,7 +1,6 @@
 /*
  * Spacing tokens — 4-point grid. Name steps by size, never by use.
- * Prefer `gap` with these tokens for layout rhythm; screen edge padding
- * is `spacing.md` unless a design says otherwise.
+ * Prefer `gap` with these tokens for layout rhythm.
  */
 
 export const spacing = {
@@ -11,12 +10,4 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
-} as const;
-
-/** Semantic layout aliases. Values always point back at the scale above. */
-export const layout = {
-  /** Screen edge padding. */
-  screenEdge: spacing.md,
-  /** Gap between content sections on a screen. */
-  sectionGap: spacing.lg,
 } as const;

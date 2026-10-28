@@ -1,16 +1,18 @@
+import { useRouter } from "expo-router";
 import { Button } from "heroui-native/button";
-import { Card } from "heroui-native/card";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
-import { SafeAreaView } from "@/components/safe-area-view";
+
 import { BandChip } from "@/components/band-chip";
 import { FieldInput } from "@/components/field-input";
-import { fontStack } from "@/theme/typography";
-
+import { Masthead } from "@/components/masthead";
+import { Notice } from "@/components/notice";
+import { Screen } from "@/components/screen";
+import { Section } from "@/components/section";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function Settings() {
+  const router = useRouter();
   const user = useSessionStore((state) => state.user);
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
@@ -44,90 +46,62 @@ export default function Settings() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView className="flex-1" contentContainerClassName="grow gap-6 px-6 py-8">
-        <View className="gap-3">
-          <Typography
-            style={{ fontFamily: fontStack.band, letterSpacing: 2 }}
-            type="body-xs"
-            weight="bold"
-            className="text-accent"
-          >
-            YOUR BAND
-          </Typography>
-          <Typography.Heading
-            style={{ fontFamily: fontStack.display, fontStyle: "italic" }}
-            type="h1"
-          >
-            Settings.
-          </Typography.Heading>
-          {user ? (
-            <BandChip username={user.username} verified={user.verified} />
-          ) : (
-            <Typography.Paragraph color="muted">Manage this User.</Typography.Paragraph>
-          )}
-          {user ? (
-            <Typography.Paragraph color="muted">
-              Signed in as {user.username} ({user.email}).
-            </Typography.Paragraph>
-          ) : null}
-        </View>
+    <Screen>
+      <Masthead
+        title="Settings."
+        onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+      >
+        {user ? <BandChip username={user.username} verified={user.verified} /> : null}
+      </Masthead>
 
-        <Card variant="secondary">
-          <Card.Body className="gap-4">
-            <Typography.Heading type="h3">Username</Typography.Heading>
-            <FieldInput
-              label="Username"
-              value={username}
-              onChangeText={setUsernameDraft}
-              autoCapitalize="none"
-              editable={!isBusy}
-              placeholder="e.g. river_song"
-              hint="3–20 characters: letters, numbers, underscore, dot."
-            />
-            <Button onPress={submitUsername} isDisabled={isBusy}>
-              {isBusy ? "Saving…" : "Save Username"}
-            </Button>
-          </Card.Body>
-        </Card>
+      <Section label="Call sign">
+        <FieldInput
+          label="Username"
+          value={username}
+          onChangeText={setUsernameDraft}
+          autoCapitalize="none"
+          editable={!isBusy}
+          placeholder="e.g. river_song"
+          hint="3–20 characters: letters, numbers, underscore, dot."
+        />
+        <Button onPress={submitUsername} isDisabled={isBusy}>
+          {isBusy ? "Saving…" : "Save username"}
+        </Button>
+      </Section>
 
-        {user && !user.hasPassword ? (
-          <Card variant="secondary">
-            <Card.Body className="gap-4">
-              <Typography.Heading type="h3">Add password</Typography.Heading>
-              <Typography.Paragraph color="muted">
-                This User joined with Social sign-in and has no password yet. Adding one unlocks
-                Password sign-in too.
-              </Typography.Paragraph>
-              <FieldInput
-                label="New password"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-                editable={!isBusy}
-                placeholder="8-15 chars, upper, lower, number & symbol"
-              />
-              <Button onPress={submitPassword} isDisabled={isBusy}>
-                {isBusy ? "Saving…" : "Add password"}
-              </Button>
-            </Card.Body>
-          </Card>
-        ) : null}
+      {user && !user.hasPassword ? (
+        <Section label="Password">
+          <Typography.Paragraph color="muted">
+            This User joined with Social sign-in and has no password yet. Adding one unlocks
+            Password sign-in too.
+          </Typography.Paragraph>
+          <FieldInput
+            label="New password"
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            editable={!isBusy}
+            placeholder="8-15 chars, upper, lower, number & symbol"
+          />
+          <Button variant="secondary" onPress={submitPassword} isDisabled={isBusy}>
+            {isBusy ? "Saving…" : "Add password"}
+          </Button>
+        </Section>
+      ) : null}
 
-        <Card variant="secondary">
-          <Card.Body className="gap-4">
-            <Typography.Heading type="h3">Devices</Typography.Heading>
-            <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={isBusy}>
-              Sign out everywhere
-            </Button>
-          </Card.Body>
-        </Card>
+      <Section label="Devices">
+        <Typography.Paragraph color="muted">
+          {user
+            ? `Signed in as ${user.email} on this device. Signing out everywhere ends every other session.`
+            : "Signing out everywhere ends every other session."}
+        </Typography.Paragraph>
+        <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={isBusy}>
+          Sign out everywhere
+        </Button>
+      </Section>
 
-        {saved ? <Typography.Paragraph color="muted">{saved}</Typography.Paragraph> : null}
-        {error ? (
-          <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+      {saved ? <Notice tone="success">{saved}</Notice> : null}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+    </Screen>
   );
 }

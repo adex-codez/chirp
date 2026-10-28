@@ -24,7 +24,8 @@ Prefer `className` utilities wherever possible
 can't reach:
 
 - `StyleSheet.create` / Reanimated styles
-- SVG fills (`chirp-logo.tsx` uses `brand` for this reason)
+- SVG fills (`songline.tsx` and `chirp-logo.tsx` use `dawn` for
+  this reason)
 - Navigation theme objects
 
 ## Colors — `colors.ts`
@@ -60,8 +61,8 @@ Dawn chorus accents (banding-station palette, mirror `--color-*` in
 
 | Token | Hex | Use |
 |---|---|---|
-| `night` | `#071627` | auth header wash, home logo plate |
-| `dawn.DEFAULT` | `#FFC247` | songline bars, band rivets, focus rings — the single signature |
+| `night` | `#071627` | the night leaf; lifts to `brand[900]` in dark mode |
+| `dawn.DEFAULT` | `#FFC247` | songline bars, the logo seal, band rivets, focus rings — the single signature |
 | `dawn.deep` | `#E89B2E` | pressed gold |
 
 Verified states use HeroUI's `success` token through
@@ -73,9 +74,12 @@ Username bands. Body stays on HeroUI's system font. React Native takes
 one family per platform, so `typography.ts` is the only font definition
 and `global.css` carries no font tokens.
 
-Signature components in `src/components/`: `AuthShell` (night band +
-step meter), `Songline` (sonogram divider/progress), `FieldInput`
-(mono label + gold focus), `BandChip` (Username as leg band).
+Signature components in `src/components/`: `ChirpLogo` (a gold seal
+with the call cut through it), `AuthShell` (night leaf + paper sheet +
+step meter), `Songline` / `SonglineRule` (sonogram progress and
+divider), `FieldInput` (mono label + gold focus), `BandChip` (Username
+as leg band), `Screen` / `Masthead` / `Section` / `Notice` (the screen
+vocabulary below), and `icons` (`ChevronLeft`, `Check`, the only icons).
 
 Do not add semantic surface/muted/status/border colors here —
 HeroUI owns them.
@@ -94,11 +98,8 @@ layout rhythm.
 | `xl` | 32 |
 | `xxl` | 48 |
 
-Semantic aliases (always point back at the scale):
-
-- `layout.screenEdge` → `spacing.md` — screen edge padding unless
-  a design says otherwise.
-- `layout.sectionGap` → `spacing.lg` — gap between content sections.
+The screen edge is `px-6` (24). `Screen` and `AuthShell` own it; screens
+never write their own edge padding. Section gaps are `gap-6`.
 
 If a value between steps keeps recurring, add it as a named step
 instead of scattering literals.
@@ -127,6 +128,14 @@ Screens should use HeroUI Native's `Typography` component
 (`type="h1" | … | "body" | "body-sm" | "body-xs"`,
 `color="default" | "muted"`, `weight=…`). Import `type` from here only
 where `Typography` can't be used (`StyleSheet.create`, canvas/SVG text).
+
+Two named styles live beside the variants. A `fontFamily` +
+`letterSpacing` pair repeated at every call site drifts, so it lives here:
+
+- `bandLabel` — mono, tracked 1.5. Kickers, plate captions, masthead
+  meta, Username bands, field labels.
+- `displayTitle` — field-guide serif italic. Screen titles only, once
+  per screen.
 
 ## Radius — `radius.ts`
 
@@ -180,12 +189,35 @@ Reanimated or CSS transitions.
 | `base` | 250 | element transitions (enter/exit) |
 | `slow` | 400 | large surfaces (sheets, screens) |
 
+## Screen archetypes
+
+Two grounds, two owners. A screen never invents a third.
+
+**Night leaf** (`AuthShell`). The sign-in group. A `night` ground
+carrying the seal, a mono kicker, the display title, the intro and the
+step meter, with a paper sheet rising over it. `AuthShell` owns the safe
+area, the status bar, the scroll and the keyboard avoidance. Its children
+are form content only. A trailing secondary action passes as `footer`
+and rests at the bottom of the sheet, so a short form never floats above
+a field of empty paper.
+
+**Ledger** (`Screen`). The app group. Paper ground. `Screen` owns the
+safe area, the edge padding, the scroll and the keyboard avoidance.
+`Masthead` is the first child and carries either the seal or a back
+control, an optional mono meta, a hairline and the display title.
+`Section` then separates content with a mono plate caption on its own
+hairline. No cards: a card per section makes every section compete with
+the one that matters.
+
+Titles step down between grounds on purpose. `h1` on the night leaf,
+`h2` on the ledger, so the leaf stays the loudest thing in the app.
+
 ## Components
 
 Shared primitives live in `src/components/`: `chirp-logo`, `auth-shell`,
-`band-chip`, `field-input`, `provider-marks`, `safe-area-view`, and
-`songline`. Text comes from HeroUI's `Typography`. Every new primitive
-defines explicitly:
+`screen`, `masthead`, `section`, `notice`, `icons`, `band-chip`,
+`field-input`, `provider-marks`, `safe-area-view`, `songline`. Text comes
+from HeroUI's `Typography`. Every new primitive defines explicitly:
 
 - **Variants** — visual intent (`primary`, `secondary`, `ghost`,
   `destructive`). Add one only when a real screen needs it.
@@ -208,6 +240,16 @@ Promote a view to `src/components/` only when all hold: used in 2+
 screens, has a nameable role (`Card`, `EmptyState`), and its API is
 smaller than its implementation. Path: inline JSX → `screens/<name>/`
 colocated component → `src/components/`.
+
+`Notice` replaces bare colored paragraphs. Every screen-level error or
+confirmation goes through it, and `tone` is required so the call site
+names its intent.
+
+`Card` has no use in the current screens. Sections are hairlines, not
+surfaces. Reach for it only when a surface genuinely lifts off the page.
+
+Six-slot code rows (`InputOTP`) use `w-10` slots. The default 44pt slot
+overflows a 360pt screen inside the 24pt margin.
 
 ## Where decisions live
 
