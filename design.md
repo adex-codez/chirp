@@ -196,8 +196,10 @@ Two grounds, two owners. A screen never invents a third.
 **Night leaf** (`AuthShell`). The sign-in group. A `night` ground
 carrying the seal, a mono kicker, the display title, the intro and the
 step meter, with a paper sheet rising over it. `AuthShell` owns the safe
-area, the status bar, the scroll and the keyboard avoidance. Its
-children are form content only.
+area, the status bar, the scroll and the keyboard avoidance. Its children
+are form content only. A trailing secondary action passes as `footer`
+and rests at the bottom of the sheet, so a short form never floats above
+a field of empty paper.
 
 **Ledger** (`Screen`). The app group. Paper ground. `Screen` owns the
 safe area, the edge padding, the scroll and the keyboard avoidance.

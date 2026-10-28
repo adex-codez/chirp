@@ -1,6 +1,5 @@
 import { Button } from "heroui-native/button";
 import { useState } from "react";
-import { View } from "react-native";
 
 import { AuthShell } from "@/components/auth-shell";
 import { FieldInput } from "@/components/field-input";
@@ -33,6 +32,11 @@ export default function ChooseUsername() {
           : "You signed in with Social sign-in. Now claim your unique, public Username — nothing else unlocks until it is set."
       }
       step={3}
+      footer={
+        <Button variant="ghost" onPress={() => void cancelUsernamePick()} isDisabled={isBusy}>
+          Cancel and sign out
+        </Button>
+      }
     >
       <FieldInput
         label="Username"
@@ -45,14 +49,9 @@ export default function ChooseUsername() {
       />
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      <View className="gap-3">
-        <Button onPress={submit} isDisabled={isBusy}>
-          {isBusy ? "Saving…" : "Save Username"}
-        </Button>
-        <Button variant="ghost" onPress={() => void cancelUsernamePick()} isDisabled={isBusy}>
-          Cancel and sign out
-        </Button>
-      </View>
+      <Button onPress={submit} isDisabled={isBusy}>
+        {isBusy ? "Saving…" : "Save username"}
+      </Button>
     </AuthShell>
   );
 }

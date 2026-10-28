@@ -33,6 +33,11 @@ export default function ResetPassword() {
       kicker="NEW SECRET"
       title="Choose a password."
       intro="8–15 characters with an uppercase letter, a lowercase letter, a number, and a special character. Resetting signs every device out."
+      footer={
+        <Link href="/sign-in" asChild>
+          <Button variant="ghost">Back to sign in</Button>
+        </Link>
+      }
     >
       <View className="gap-4">
         <FieldInput
@@ -81,14 +86,9 @@ export default function ResetPassword() {
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>
 
-      <View className="gap-3">
-        <Button onPress={submit} isDisabled={isBusy}>
-          {isBusy ? "Resetting…" : "Reset password"}
-        </Button>
-        <Link href="/sign-in" asChild>
-          <Button variant="ghost">Back to sign in</Button>
-        </Link>
-      </View>
+      <Button onPress={submit} isDisabled={isBusy}>
+        {isBusy ? "Resetting…" : "Reset password"}
+      </Button>
     </AuthShell>
   );
 }

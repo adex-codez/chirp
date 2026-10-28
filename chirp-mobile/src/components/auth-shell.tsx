@@ -17,9 +17,10 @@ type AuthShellProps = {
   step?: number;
   of?: number;
   children: ReactNode;
+  footer?: ReactNode;
 };
 
-export function AuthShell({ kicker, title, intro, step, of = 3, children }: AuthShellProps) {
+export function AuthShell({ kicker, title, intro, step, of = 3, children, footer }: AuthShellProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -62,6 +63,7 @@ export function AuthShell({ kicker, title, intro, step, of = 3, children }: Auth
           keyboardDismissMode="on-drag"
         >
           {children}
+          {footer ? <View className="mt-auto">{footer}</View> : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

@@ -36,6 +36,11 @@ export default function Verify() {
           : "Claim a Username first, then enter the code we send you."
       }
       step={2}
+      footer={
+        <Button variant="ghost" onPress={() => void resendCode()} isDisabled={isBusy}>
+          Resend code
+        </Button>
+      }
     >
       <View className="gap-4">
         <View className="gap-2">
@@ -71,14 +76,9 @@ export default function Verify() {
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>
 
-      <View className="gap-3">
-        <Button onPress={() => void submit(code)} isDisabled={isBusy}>
-          {isBusy ? "Verifying…" : "Verify and continue"}
-        </Button>
-        <Button variant="ghost" onPress={() => void resendCode()} isDisabled={isBusy}>
-          Resend code
-        </Button>
-      </View>
+      <Button onPress={() => void submit(code)} isDisabled={isBusy}>
+        {isBusy ? "Verifying…" : "Verify and continue"}
+      </Button>
     </AuthShell>
   );
 }

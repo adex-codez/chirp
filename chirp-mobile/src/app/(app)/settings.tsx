@@ -54,7 +54,7 @@ export default function Settings() {
         {user ? <BandChip username={user.username} verified={user.verified} /> : null}
       </Masthead>
 
-      <Section label="Username">
+      <Section label="Call sign">
         <FieldInput
           label="Username"
           value={username}
@@ -65,7 +65,7 @@ export default function Settings() {
           hint="3–20 characters: letters, numbers, underscore, dot."
         />
         <Button onPress={submitUsername} isDisabled={isBusy}>
-          {isBusy ? "Saving…" : "Save Username"}
+          {isBusy ? "Saving…" : "Save username"}
         </Button>
       </Section>
 

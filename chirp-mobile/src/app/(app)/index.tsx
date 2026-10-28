@@ -2,7 +2,6 @@ import { Link, useRouter } from "expo-router";
 import { Button } from "heroui-native/button";
 import { ControlField } from "heroui-native/control-field";
 import { ListGroup } from "heroui-native/list-group";
-import { PressableFeedback } from "heroui-native/pressable-feedback";
 import { Separator } from "heroui-native/separator";
 import { Typography } from "heroui-native/text";
 import { View } from "react-native";
@@ -50,28 +49,23 @@ export default function Index() {
       </Masthead>
 
       <Section label="Account">
-        <ListGroup variant="transparent">
-          <ListGroup.Item>
+        <ListGroup variant="transparent" className="-mx-4 -my-4">
+          <ListGroup.Item className="px-0">
             <ListGroup.ItemContent>
               <ListGroup.ItemTitle>Email</ListGroup.ItemTitle>
               <ListGroup.ItemDescription>{sessionUser.email}</ListGroup.ItemDescription>
             </ListGroup.ItemContent>
           </ListGroup.Item>
-          <Separator className="mx-4" />
-          <PressableFeedback animation={false} onPress={() => router.push("/settings")}>
-            <PressableFeedback.Scale>
-              <ListGroup.Item disabled>
-                <ListGroup.ItemContent>
-                  <ListGroup.ItemTitle>Settings</ListGroup.ItemTitle>
-                  <ListGroup.ItemDescription>
-                    Username, password, devices
-                  </ListGroup.ItemDescription>
-                </ListGroup.ItemContent>
-                <ListGroup.ItemSuffix />
-              </ListGroup.Item>
-            </PressableFeedback.Scale>
-            <PressableFeedback.Ripple />
-          </PressableFeedback>
+          <Separator />
+          <ListGroup.Item className="px-0" onPress={() => router.push("/settings")}>
+            <ListGroup.ItemContent>
+              <ListGroup.ItemTitle>Settings</ListGroup.ItemTitle>
+              <ListGroup.ItemDescription>
+                Username, password, devices
+              </ListGroup.ItemDescription>
+            </ListGroup.ItemContent>
+            <ListGroup.ItemSuffix />
+          </ListGroup.Item>
         </ListGroup>
       </Section>
 
@@ -80,7 +74,7 @@ export default function Index() {
           <View className="flex-1">
             <Typography weight="bold">Notifications</Typography>
             <Typography.Paragraph type="body-sm" color="muted">
-              Hear the chorus when something needs you. Quiet by default.
+              Hear the chorus when something needs you.
             </Typography.Paragraph>
           </View>
           <ControlField.Indicator />
@@ -89,9 +83,11 @@ export default function Index() {
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={isBusy}>
-        Sign out
-      </Button>
+      <Section label="Session">
+        <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={isBusy}>
+          Sign out
+        </Button>
+      </Section>
     </Screen>
   );
 }
