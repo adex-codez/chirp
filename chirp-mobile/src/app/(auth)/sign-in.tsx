@@ -2,12 +2,13 @@ import { Link } from "expo-router";
 import { Button } from "heroui-native/button";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
+
 import { AuthShell } from "@/components/auth-shell";
 import { FieldInput } from "@/components/field-input";
-import { Songline } from "@/components/songline";
+import { Notice } from "@/components/notice";
 import { SocialButtons } from "@/components/social-buttons";
-
+import { SonglineRule } from "@/components/songline";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function SignIn() {
@@ -32,61 +33,53 @@ export default function SignIn() {
       title="Welcome back."
       intro="Sign in with your Email and password, or use Social sign-in."
     >
-      <ScrollView className="flex-1" contentContainerClassName="grow gap-4 pb-6">
-        <View className="gap-4">
-          <FieldInput
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!isBusy}
-            placeholder="you@example.com"
-          />
-          <FieldInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!isBusy}
-            placeholder="Your password"
-          />
-          {error ? (
-            <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
-          ) : null}
-          {status === "pending-verification" ? (
-            <Typography.Paragraph color="muted">
-              That Email is not verified yet — check your inbox for the code.
-            </Typography.Paragraph>
-          ) : null}
-        </View>
+      <View className="gap-4">
+        <FieldInput
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          editable={!isBusy}
+          placeholder="you@example.com"
+        />
+        <FieldInput
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          editable={!isBusy}
+          placeholder="Your password"
+        />
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        {status === "pending-verification" ? (
+          <Typography.Paragraph color="muted">
+            That Email is not verified yet — check your inbox for the code.
+          </Typography.Paragraph>
+        ) : null}
+      </View>
 
-        <Button onPress={submit} isDisabled={isBusy}>
-          {isBusy ? "Signing in…" : "Sign in"}
-        </Button>
+      <Button onPress={submit} isDisabled={isBusy}>
+        {isBusy ? "Signing in…" : "Sign in"}
+      </Button>
 
-        <View className="flex-row items-center gap-3">
-          <View className="h-px flex-1 bg-separator" />
-          <Songline height={20} levels={[10, 22, 14, 30, 18, 26, 12]} />
-          <View className="h-px flex-1 bg-separator" />
-        </View>
+      <SonglineRule />
 
-        <SocialButtons />
+      <SocialButtons />
 
-        <View className="items-center gap-0.5">
-          <Link href="/forgot-password" asChild>
-            <Button variant="ghost">Forgot password?</Button>
+      <View className="items-center gap-1">
+        <Link href="/forgot-password" asChild>
+          <Button variant="ghost">Forgot password?</Button>
+        </Link>
+        <View className="flex-row items-center justify-center gap-1.5">
+          <Typography color="muted">Don&apos;t have an account?</Typography>
+          <Link href="/sign-up" asChild>
+            <Typography accessibilityRole="link" weight="bold" className="py-3 text-accent">
+              Sign up
+            </Typography>
           </Link>
-          <View className="flex-row items-center justify-center gap-1.5">
-            <Typography color="muted">Don&apos;t have an account?</Typography>
-            <Link href="/sign-up" asChild>
-              <Typography accessibilityRole="link" weight="bold" className="py-3 text-accent">
-                Sign up
-              </Typography>
-            </Link>
-          </View>
         </View>
-      </ScrollView>
+      </View>
     </AuthShell>
   );
 }

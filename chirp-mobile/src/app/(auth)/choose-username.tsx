@@ -1,10 +1,10 @@
 import { Button } from "heroui-native/button";
-import { Typography } from "heroui-native/text";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
+
 import { AuthShell } from "@/components/auth-shell";
 import { FieldInput } from "@/components/field-input";
-
+import { Notice } from "@/components/notice";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function ChooseUsername() {
@@ -34,28 +34,25 @@ export default function ChooseUsername() {
       }
       step={3}
     >
-      <ScrollView className="flex-1" contentContainerClassName="grow gap-5 pb-8">
-        <FieldInput
-          label="Username"
-          value={draft}
-          onChangeText={setDraft}
-          autoCapitalize="none"
-          editable={!isBusy}
-          placeholder="e.g. river_song"
-          hint="3–20 characters: letters, numbers, underscore, dot."
-        />
-        {error ? (
-          <Typography.Paragraph className="text-danger">{error}</Typography.Paragraph>
-        ) : null}
-        <View className="gap-3">
-          <Button onPress={submit} isDisabled={isBusy}>
-            {isBusy ? "Saving…" : "Save Username"}
-          </Button>
-          <Button variant="outline" onPress={() => void cancelUsernamePick()} isDisabled={isBusy}>
-            Cancel and sign out
-          </Button>
-        </View>
-      </ScrollView>
+      <FieldInput
+        label="Username"
+        value={draft}
+        onChangeText={setDraft}
+        autoCapitalize="none"
+        editable={!isBusy}
+        placeholder="e.g. river_song"
+        hint="3–20 characters: letters, numbers, underscore, dot."
+      />
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+
+      <View className="gap-3">
+        <Button onPress={submit} isDisabled={isBusy}>
+          {isBusy ? "Saving…" : "Save Username"}
+        </Button>
+        <Button variant="ghost" onPress={() => void cancelUsernamePick()} isDisabled={isBusy}>
+          Cancel and sign out
+        </Button>
+      </View>
     </AuthShell>
   );
 }

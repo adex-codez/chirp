@@ -1,6 +1,5 @@
 import "../global.css";
 
-import { StatusBar } from "expo-status-bar";
 import { SplashScreen, Stack, router, useSegments } from "expo-router";
 import { useEffect } from "react";
 
@@ -61,7 +60,6 @@ export default function RootLayout() {
 
   return (
     <AppProvider>
-      <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Protected guard={status !== "authenticated"}>

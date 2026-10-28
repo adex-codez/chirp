@@ -62,6 +62,8 @@
       --accent: var(--color-brand-300);
       --accent-foreground: var(--color-brand-950);
       --focus: var(--color-brand-300);
+
+      --color-night: var(--color-brand-900);
     }
   }
 }

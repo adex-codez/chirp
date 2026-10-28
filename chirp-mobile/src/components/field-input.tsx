@@ -2,13 +2,9 @@ import { useState } from "react";
 import { TextInput, View, type TextInputProps } from "react-native";
 import { useThemeColor } from "heroui-native/hooks";
 import { Typography } from "heroui-native/text";
-import { fontStack } from "@/theme/typography";
 
-/*
- * FieldInput — mono band label over a large field.
- * Labels name what the User controls (Username, Email), never
- * system terms. Gold focus ring ties every field to the songline.
- */
+import { dawn } from "@/theme/colors";
+import { bandLabel } from "@/theme/typography";
 
 type FieldInputProps = TextInputProps & {
   label: string;
@@ -21,39 +17,42 @@ export function FieldInput({
   onFocus,
   onBlur,
   className,
+  style,
   accessibilityLabel,
   placeholderTextColor,
   ...rest
 }: FieldInputProps) {
   const [focused, setFocused] = useState(false);
   const themePlaceholder = useThemeColor("field-placeholder");
+
   return (
-    <View className="gap-1.5">
-      <Typography
-        style={{ fontFamily: fontStack.band, letterSpacing: 1.5 }}
-        type="body-xs"
-        weight="bold"
-        className="text-foreground"
-      >
+    <View className="gap-2">
+      <Typography style={bandLabel} type="body-xs" weight="bold" className="text-muted">
         {label.toUpperCase()}
       </Typography>
       <TextInput
         {...rest}
         accessibilityLabel={accessibilityLabel ?? label}
-        onFocus={(e) => {
+        onFocus={(event) => {
           setFocused(true);
-          onFocus?.(e);
+          onFocus?.(event);
         }}
-        onBlur={(e) => {
+        onBlur={(event) => {
           setFocused(false);
-          onBlur?.(e);
+          onBlur?.(event);
         }}
         placeholderTextColor={placeholderTextColor ?? themePlaceholder}
-        className={`rounded-field border-2 bg-surface px-4 py-3 text-base text-foreground ${
+        selectionColor={dawn.DEFAULT}
+        style={[{ borderCurve: "continuous" }, style]}
+        className={`rounded-field border bg-surface px-4 py-3.5 text-base text-foreground ${
           focused ? "border-dawn" : "border-separator"
         } ${className ?? ""}`}
       />
-      {hint ? <Typography.Paragraph color="muted">{hint}</Typography.Paragraph> : null}
+      {hint ? (
+        <Typography.Paragraph type="body-sm" color="muted">
+          {hint}
+        </Typography.Paragraph>
+      ) : null}
     </View>
   );
 }

@@ -1,3 +1,4 @@
+import { View } from "react-native";
 import Svg, { Rect } from "react-native-svg";
 
 import { dawn } from "@/theme/colors";
@@ -19,10 +20,6 @@ type SonglineProps = {
 };
 
 const DEFAULT_LEVELS = [8, 16, 26, 14, 32, 22, 38, 18, 28, 12, 24, 34, 16, 26, 10, 20, 30, 14, 22, 8];
-
-// One-off: the sonogram is always drawn on the night header, so the
-// inactive bars are white at low opacity rather than a theme surface.
-const INACTIVE_BAR = "#FFFFFF";
 
 export function Songline({ levels = DEFAULT_LEVELS, active, height = 40 }: SonglineProps) {
   const barWidth = 6;
@@ -49,11 +46,21 @@ export function Songline({ levels = DEFAULT_LEVELS, active, height = 40 }: Songl
             width={barWidth}
             height={h}
             rx={3}
-            fill={isOn ? dawn.DEFAULT : INACTIVE_BAR}
+            fill={dawn.DEFAULT}
             opacity={isOn ? 1 : 0.22}
           />
         );
       })}
     </Svg>
+  );
+}
+
+export function SonglineRule({ height = 20, levels }: { height?: number; levels?: number[] }) {
+  return (
+    <View className="flex-row items-center gap-3">
+      <View className="h-px flex-1 bg-separator" />
+      <Songline height={height} levels={levels} />
+      <View className="h-px flex-1 bg-separator" />
+    </View>
   );
 }
