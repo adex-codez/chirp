@@ -31,7 +31,7 @@ export const type = {
 
 /*
  * Display + band faces. Display (field-guide serif) is for night-header
- * headlines only; band (mono) is for kickers, codes, and Username bands.
+ * headlines only; band (mono) is for plate captions, codes, and Username bands.
  * Body text stays on the system font via HeroUI.
  *
  * React Native takes one family name per platform, not a CSS stack, so
@@ -51,7 +51,7 @@ export const fontStack = {
   }),
 } as const;
 
-/** Mono, tracked: kickers, plate captions, meta, Username bands. */
+/** Mono, tracked: plate captions, meta, Username bands. */
 export const bandLabel: TextStyle = { fontFamily: fontStack.band, letterSpacing: 1.5 };
 
 /** Field-guide serif italic: screen titles only. */

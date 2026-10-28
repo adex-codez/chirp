@@ -29,7 +29,7 @@ export default function Index() {
   if (!sessionUser) {
     return (
       <Screen>
-        <Masthead title="Your chorus is ready." meta="Signed out" />
+        <Masthead title="Signed out." />
         <Notice tone="muted">You are not signed in. Sign in to use Chirp.</Notice>
         <Link href="/sign-in" asChild>
           <Button>Sign in</Button>
@@ -40,11 +40,8 @@ export default function Index() {
 
   return (
     <Screen>
-      <Masthead title="Your chorus is ready." meta="FIRST LIGHT">
+      <Masthead title="Your account is ready." meta="SIGNED IN">
         <BandChip username={sessionUser.username} verified={sessionUser.verified} />
-        <Typography.Paragraph color="muted">
-          Every voice here is banded: one verified User, one Username, no mimics.
-        </Typography.Paragraph>
         <Songline height={28} />
       </Masthead>
 
@@ -74,7 +71,7 @@ export default function Index() {
           <View className="flex-1">
             <Typography weight="bold">Notifications</Typography>
             <Typography.Paragraph type="body-sm" color="muted">
-              Hear the chorus when something needs you.
+              Get notified when someone messages you.
             </Typography.Paragraph>
           </View>
           <ControlField.Indicator />

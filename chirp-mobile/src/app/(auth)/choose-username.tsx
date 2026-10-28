@@ -24,12 +24,11 @@ export default function ChooseUsername() {
 
   return (
     <AuthShell
-      kicker="ONE LAST THING"
-      title="Pick your call sign."
+      title="Choose a username."
       intro={
         user
-          ? `You signed in with Social sign-in as ${user.email}. Now claim the unique, public Username the chorus will know you by — nothing else unlocks until it is set.`
-          : "You signed in with Social sign-in. Now claim your unique, public Username — nothing else unlocks until it is set."
+          ? `You signed in with a social account as ${user.email}. Choose the Username people will see.`
+          : "Choose the Username people will see."
       }
       step={3}
       footer={

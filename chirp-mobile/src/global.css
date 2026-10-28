@@ -50,6 +50,10 @@
       --accent: var(--color-brand-800);
       --accent-foreground: #ffffff;
       --focus: var(--color-brand-800);
+
+      /* Both variants must declare every themed variable, so light states
+       * the base night value instead of inheriting it from `@theme`. */
+      --color-night: var(--color-brand-950);
     }
 
     @variant dark {

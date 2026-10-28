@@ -24,9 +24,8 @@ export default function ForgotPassword() {
 
   return (
     <AuthShell
-      kicker="LOST YOUR SONG?"
-      title="Find your way back."
-      intro="Enter the Email of your User. If it exists and is verified, a code is on its way — otherwise this reveals nothing."
+      title="Reset your password."
+      intro="Enter your email and we send a reset code if the account exists."
       footer={
         <Link href="/sign-in" asChild>
           <Button variant="ghost">Back to sign in</Button>
