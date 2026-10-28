@@ -1,11 +1,11 @@
 import { Link, router } from "expo-router";
 import { Button } from "heroui-native/button";
-import { InputOTP, REGEXP_ONLY_DIGITS } from "heroui-native/input-otp";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
 import { View } from "react-native";
 
 import { AuthShell } from "@/components/auth-shell";
+import { CodeField } from "@/components/code-field";
 import { FieldInput } from "@/components/field-input";
 import { Notice } from "@/components/notice";
 import { useSessionStore } from "@/store/use-session-store";
@@ -18,6 +18,7 @@ export default function ResetPassword() {
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
   const resetPassword = useSessionStore((state) => state.resetPassword);
+  const clearError = useSessionStore((state) => state.clearError);
 
   const submit = async () => {
     try {
@@ -52,27 +53,14 @@ export default function ResetPassword() {
           <Typography style={bandLabel} type="body-xs" weight="bold" className="text-muted">
             CODE
           </Typography>
-          <InputOTP
+          <CodeField
             value={code}
             onChange={setCode}
-            maxLength={6}
+            onEdit={error ? clearError : undefined}
             isInvalid={Boolean(error)}
             isDisabled={isBusy}
-            pattern={REGEXP_ONLY_DIGITS}
-            textInputProps={{ accessibilityLabel: "Six digit reset code" }}
-          >
-            <InputOTP.Group>
-              <InputOTP.Slot index={0} className="w-10" />
-              <InputOTP.Slot index={1} className="w-10" />
-              <InputOTP.Slot index={2} className="w-10" />
-            </InputOTP.Group>
-            <InputOTP.Separator />
-            <InputOTP.Group>
-              <InputOTP.Slot index={3} className="w-10" />
-              <InputOTP.Slot index={4} className="w-10" />
-              <InputOTP.Slot index={5} className="w-10" />
-            </InputOTP.Group>
-          </InputOTP>
+            label="Six digit reset code"
+          />
         </View>
         <FieldInput
           label="New password"

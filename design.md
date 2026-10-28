@@ -216,8 +216,9 @@ Titles step down between grounds on purpose. `h1` on the night leaf,
 
 Shared primitives live in `src/components/`: `chirp-logo`, `auth-shell`,
 `screen`, `masthead`, `section`, `notice`, `icons`, `band-chip`,
-`field-input`, `provider-marks`, `safe-area-view`, `songline`. Text comes
-from HeroUI's `Typography`. Every new primitive defines explicitly:
+`field-input`, `code-field`, `provider-marks`, `safe-area-view`,
+`songline`. Text comes from HeroUI's `Typography`. Every new primitive
+defines explicitly:
 
 - **Variants** — visual intent (`primary`, `secondary`, `ghost`,
   `destructive`). Add one only when a real screen needs it.
@@ -248,8 +249,21 @@ names its intent.
 `Card` has no use in the current screens. Sections are hairlines, not
 surfaces. Reach for it only when a surface genuinely lifts off the page.
 
-Six-slot code rows (`InputOTP`) use `w-10` slots. The default 44pt slot
-overflows a 360pt screen inside the 24pt margin.
+`FieldInput` and `CodeField` share one recipe. `bg-surface` plate,
+`border-separator` at rest, `border-dawn` on focus, `radius-field`,
+`borderCurve: continuous`, and `dawn.DEFAULT` for the selection caret.
+
+Six-slot code rows (`CodeField`) use `w-10` slots in two groups of three
+around a `separator` dot. The default 44pt slot overflows a 360pt screen
+inside the 24pt margin.
+
+`CodeField` error state is a real border swap to `border-danger` plus a
+horizontal shake, because HeroUI's `isInvalid` paints an `outline` that
+native platforms never render. The shake runs `Animated.sequence` over
+`SHAKE_STEP = motion.fast / 3` from `motion.ts` and fires only on the
+`false → true` edge of `isInvalid`. Editing calls `onEdit`, and the
+screen passes `clearError`, so the red state and the `Notice` both leave
+when the user starts correcting the code.
 
 ## Where decisions live
 
