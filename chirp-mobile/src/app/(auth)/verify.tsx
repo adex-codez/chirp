@@ -27,6 +27,15 @@ export default function Verify() {
     }
   };
 
+  const resend = async () => {
+    try {
+      await resendCode();
+      setCode("");
+    } catch {
+      // Error text already lives in the store.
+    }
+  };
+
   return (
     <AuthShell
       title="Check your email."
@@ -37,7 +46,7 @@ export default function Verify() {
       }
       step={2}
       footer={
-        <Button variant="ghost" onPress={() => void resendCode()} isDisabled={isBusy}>
+        <Button variant="ghost" onPress={() => void resend()} isDisabled={isBusy}>
           Resend code
         </Button>
       }
