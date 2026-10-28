@@ -29,9 +29,8 @@ export default function SignUp() {
 
   return (
     <AuthShell
-      kicker="BANDING STATION"
-      title="Claim your call sign."
-      intro="Your Username is unique and public. We check your Email before anything else unlocks."
+      title="Create your account."
+      intro="Pick a Username and verify your email."
       step={1}
     >
       <View className="gap-4">
@@ -52,7 +51,7 @@ export default function SignUp() {
           keyboardType="email-address"
           editable={!isBusy}
           placeholder="you@example.com"
-          hint="We send one code here. Nothing else happens until you enter it."
+          hint="We send a verification code to this address."
         />
         <FieldInput
           label="Password"
@@ -66,7 +65,7 @@ export default function SignUp() {
       </View>
 
       <Button onPress={submit} isDisabled={isBusy}>
-        {isBusy ? "Creating…" : "Claim and continue"}
+        {isBusy ? "Creating…" : "Create account"}
       </Button>
 
       <SonglineRule />

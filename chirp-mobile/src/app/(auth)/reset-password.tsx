@@ -30,9 +30,8 @@ export default function ResetPassword() {
 
   return (
     <AuthShell
-      kicker="NEW SECRET"
-      title="Choose a password."
-      intro="8–15 characters with an uppercase letter, a lowercase letter, a number, and a special character. Resetting signs every device out."
+      title="Set a new password."
+      intro="8–15 characters, with an uppercase letter, a lowercase letter, a number and a symbol. Resetting signs you out on every device."
       footer={
         <Link href="/sign-in" asChild>
           <Button variant="ghost">Back to sign in</Button>

@@ -69,8 +69,8 @@ Verified states use HeroUI's `success` token through
 `useThemeColor("success")`; do not mint a second green.
 
 Type families (`fontStack`): `display` is a field-guide serif for
-night-header headlines only; `band` is mono for kickers, codes, and
-Username bands. Body stays on HeroUI's system font. React Native takes
+night-header headlines only; `band` is mono for codes, plate captions,
+and Username bands. Body stays on HeroUI's system font. React Native takes
 one family per platform, so `typography.ts` is the only font definition
 and `global.css` carries no font tokens.
 
@@ -132,8 +132,8 @@ where `Typography` can't be used (`StyleSheet.create`, canvas/SVG text).
 Two named styles live beside the variants. A `fontFamily` +
 `letterSpacing` pair repeated at every call site drifts, so it lives here:
 
-- `bandLabel` — mono, tracked 1.5. Kickers, plate captions, masthead
-  meta, Username bands, field labels.
+- `bandLabel` — mono, tracked 1.5. Plate captions, masthead meta,
+  Username bands, field labels.
 - `displayTitle` — field-guide serif italic. Screen titles only, once
   per screen.
 
@@ -194,8 +194,8 @@ Reanimated or CSS transitions.
 Two grounds, two owners. A screen never invents a third.
 
 **Night leaf** (`AuthShell`). The sign-in group. A `night` ground
-carrying the seal, a mono kicker, the display title, the intro and the
-step meter, with a paper sheet rising over it. `AuthShell` owns the safe
+carrying the seal, the display title, the optional intro and the step
+meter, with a paper sheet rising over it. `AuthShell` owns the safe
 area, the status bar, the scroll and the keyboard avoidance. Its children
 are form content only. A trailing secondary action passes as `footer`
 and rests at the bottom of the sheet, so a short form never floats above

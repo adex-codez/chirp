@@ -54,7 +54,7 @@ export default function Settings() {
         {user ? <BandChip username={user.username} verified={user.verified} /> : null}
       </Masthead>
 
-      <Section label="Call sign">
+      <Section label="Account">
         <FieldInput
           label="Username"
           value={username}
@@ -72,8 +72,8 @@ export default function Settings() {
       {user && !user.hasPassword ? (
         <Section label="Password">
           <Typography.Paragraph color="muted">
-            This User joined with Social sign-in and has no password yet. Adding one unlocks
-            Password sign-in too.
+            You signed up with a social account and have no password yet. Add one to also sign
+            in with email.
           </Typography.Paragraph>
           <FieldInput
             label="New password"

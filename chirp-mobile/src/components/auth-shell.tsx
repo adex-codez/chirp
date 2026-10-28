@@ -11,7 +11,6 @@ import { spacing } from "@/theme/spacing";
 import { bandLabel, displayTitle } from "@/theme/typography";
 
 type AuthShellProps = {
-  kicker: string;
   title: ReactNode;
   intro?: string;
   step?: number;
@@ -20,7 +19,7 @@ type AuthShellProps = {
   footer?: ReactNode;
 };
 
-export function AuthShell({ kicker, title, intro, step, of = 3, children, footer }: AuthShellProps) {
+export function AuthShell({ title, intro, step, of = 3, children, footer }: AuthShellProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -28,12 +27,7 @@ export function AuthShell({ kicker, title, intro, step, of = 3, children, footer
       <StatusBar style="light" />
       <SafeAreaView edges={["top"]} className="bg-night">
         <View className="bg-night px-6 pb-9 pt-3">
-          <View className="flex-row items-center justify-between">
-            <ChirpLogo size={32} />
-            <Typography style={bandLabel} type="body-xs" className="text-dawn">
-              {kicker}
-            </Typography>
-          </View>
+          <ChirpLogo size={32} />
           <Typography.Heading style={displayTitle} type="h1" className="mt-6 text-white">
             {title}
           </Typography.Heading>

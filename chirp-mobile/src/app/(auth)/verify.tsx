@@ -28,12 +28,11 @@ export default function Verify() {
 
   return (
     <AuthShell
-      kicker="CHECK YOUR INBOX"
-      title="Listen for the code."
+      title="Check your email."
       intro={
         pendingEmail
-          ? `We sent a 6-digit code to ${pendingEmail}. It fades in about 20 minutes.`
-          : "Claim a Username first, then enter the code we send you."
+          ? `We sent a 6-digit code to ${pendingEmail}. It expires in 20 minutes.`
+          : "Choose a Username first, then enter the code we send you."
       }
       step={2}
       footer={
@@ -71,7 +70,7 @@ export default function Verify() {
           </InputOTP>
         </View>
         <Typography.Paragraph type="body-sm" color="muted">
-          Six digits. Keep this screen open while you check your inbox.
+          Enter the six-digit code from the email.
         </Typography.Paragraph>
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>

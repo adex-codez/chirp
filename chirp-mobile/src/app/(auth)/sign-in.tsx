@@ -29,9 +29,8 @@ export default function SignIn() {
 
   return (
     <AuthShell
-      kicker="RETURNING CHORUS"
       title="Welcome back."
-      intro="Sign in with your Email and password, or use Social sign-in."
+      intro="Sign in to pick up your conversations."
     >
       <View className="gap-4">
         <FieldInput
