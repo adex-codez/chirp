@@ -134,6 +134,8 @@ Two named styles live beside the variants. A `fontFamily` +
 
 - `bandLabel` — mono, tracked 1.5. Plate captions, masthead meta,
   Username bands, field labels.
+- `barLabel` — mono, 10/16, tracked 0.8. Tab bar control labels only;
+  `bandLabel` overflows a 78pt slot.
 - `displayTitle` — field-guide serif italic. Screen titles only, once
   per screen.
 
@@ -212,13 +214,22 @@ the one that matters.
 Titles step down between grounds on purpose. `h1` on the night leaf,
 `h2` on the ledger, so the leaf stays the loudest thing in the app.
 
+`TabBar` (`src/components/tab-bar.tsx`) is the one bar in the app. It is
+an overlay, not navigator chrome: the plate is a single SVG path with the
+notch as part of its outline, so content scrolls behind the cut and stays
+visible through the 4px channel around the raised circle. Its plate
+height, well, fillet, circle and lift are the bar's own geometry table,
+not spacing tokens. `TAB_DESTINATIONS` is the single list of sections and
+sets both route order and chrome. `Screen` takes
+`bottomSpace={useTabBarSpace()}` so the last row clears the plate.
+
 ## Components
 
 Shared primitives live in `src/components/`: `chirp-logo`, `auth-shell`,
 `screen`, `masthead`, `section`, `notice`, `icons`, `band-chip`,
 `field-input`, `code-field`, `provider-marks`, `safe-area-view`,
-`songline`. Text comes from HeroUI's `Typography`. Every new primitive
-defines explicitly:
+`songline`, `tab-bar`. Text comes from HeroUI's `Typography`. Every new
+primitive defines explicitly:
 
 - **Variants** — visual intent (`primary`, `secondary`, `ghost`,
   `destructive`). Add one only when a real screen needs it.

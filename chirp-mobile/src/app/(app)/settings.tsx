@@ -1,7 +1,8 @@
-import { useRouter } from "expo-router";
 import { Button } from "heroui-native/button";
+import { ControlField } from "heroui-native/control-field";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
+import { View } from "react-native";
 
 import { BandChip } from "@/components/band-chip";
 import { FieldInput } from "@/components/field-input";
@@ -9,16 +10,21 @@ import { Masthead } from "@/components/masthead";
 import { Notice } from "@/components/notice";
 import { Screen } from "@/components/screen";
 import { Section } from "@/components/section";
+import { useTabBarSpace } from "@/components/tab-bar";
+import { useAppStore } from "@/store/use-app-store";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function Settings() {
-  const router = useRouter();
+  const barSpace = useTabBarSpace();
   const user = useSessionStore((state) => state.user);
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
   const changeUsername = useSessionStore((state) => state.changeUsername);
   const addPassword = useSessionStore((state) => state.addPassword);
   const signOutEverywhere = useSessionStore((state) => state.signOutEverywhere);
+  const signOut = useSessionStore((state) => state.signOut);
+  const isNotificationsEnabled = useAppStore((state) => state.isNotificationsEnabled);
+  const toggleNotifications = useAppStore((state) => state.toggleNotifications);
 
   const [username, setUsernameDraft] = useState(user?.username ?? "");
   const [newPassword, setNewPassword] = useState("");
@@ -46,11 +52,8 @@ export default function Settings() {
   };
 
   return (
-    <Screen>
-      <Masthead
-        title="Settings."
-        onBack={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-      >
+    <Screen bottomSpace={barSpace}>
+      <Masthead title="Settings.">
         {user ? <BandChip username={user.username} verified={user.verified} /> : null}
       </Masthead>
 
@@ -97,6 +100,24 @@ export default function Settings() {
         </Typography.Paragraph>
         <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={isBusy}>
           Sign out everywhere
+        </Button>
+      </Section>
+
+      <Section label="Notifications">
+        <ControlField isSelected={isNotificationsEnabled} onSelectedChange={toggleNotifications}>
+          <View className="flex-1">
+            <Typography weight="bold">Notifications</Typography>
+            <Typography.Paragraph type="body-sm" color="muted">
+              Get notified when someone messages you.
+            </Typography.Paragraph>
+          </View>
+          <ControlField.Indicator />
+        </ControlField>
+      </Section>
+
+      <Section label="Session">
+        <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={isBusy}>
+          Sign out
         </Button>
       </Section>
 

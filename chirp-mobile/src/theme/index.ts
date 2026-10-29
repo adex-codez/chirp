@@ -7,7 +7,7 @@
 
 export { brand, primary, accent, night, dawn } from "./colors";
 export { spacing } from "./spacing";
-export { type, fontStack, bandLabel, displayTitle } from "./typography";
+export { type, fontStack, bandLabel, barLabel, displayTitle } from "./typography";
 export type { TypeVariant } from "./typography";
 export { radius, radiusSemantic } from "./radius";
 export { shadows } from "./shadows";

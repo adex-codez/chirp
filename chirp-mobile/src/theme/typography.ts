@@ -54,6 +54,14 @@ export const fontStack = {
 /** Mono, tracked: plate captions, meta, Username bands. */
 export const bandLabel: TextStyle = { fontFamily: fontStack.band, letterSpacing: 1.5 };
 
+/** Mono, 10/16, tracked 0.8: tab bar control labels only. */
+export const barLabel: TextStyle = {
+  fontFamily: fontStack.band,
+  fontSize: 10,
+  lineHeight: 16,
+  letterSpacing: 0.8,
+};
+
 /** Field-guide serif italic: screen titles only. */
 export const displayTitle: TextStyle = { fontFamily: fontStack.display, fontStyle: "italic" };
 
