@@ -7,7 +7,7 @@ import type { ApiCode } from "./api-codes";
 
 export const CODE_MESSAGES: Record<ApiCode, string> = {
   validation_failed: "Some of the details are not right. Check them and try again.",
-  username_taken: "That username is already taken.",
+  username_taken: "That username is already taken. Choose another one.",
   email_in_use: "An account already uses that email. Sign in instead.",
   invalid_credentials: "Email or password is incorrect.",
   invalid_session: "Your session has ended. Sign in again.",

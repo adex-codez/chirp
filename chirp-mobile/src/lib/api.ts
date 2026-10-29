@@ -45,7 +45,14 @@ async function readEnvelope<T>(res: Response): Promise<T> {
     // Drop a code this client does not know, so screens only branch on codes
     // the app ships.
     const code = rawCode && isApiCode(rawCode) ? rawCode : undefined;
-    throw new ApiError(res.status, messageFor(res.status, code), {
+    const fieldMessages = Object.values(envelope.fields ?? {}).filter(
+      (message): message is string => typeof message === "string",
+    );
+    const message =
+      code === "validation_failed" && fieldMessages.length > 0
+        ? fieldMessages.join(" ")
+        : messageFor(res.status, code);
+    throw new ApiError(res.status, message, {
       code,
       fields: envelope.fields,
       requestId: res.headers.get("x-request-id") ?? undefined,
