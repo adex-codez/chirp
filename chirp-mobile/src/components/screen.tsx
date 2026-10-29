@@ -17,6 +17,8 @@ type ScreenProps = {
   contentClassName?: string;
   scroll?: boolean;
   edges?: ("top" | "bottom")[];
+  /** Space reserved for an overlay at the bottom: pass the overlay's full height. */
+  bottomSpace?: number;
 };
 
 export function Screen({
@@ -25,9 +27,10 @@ export function Screen({
   contentClassName,
   scroll = true,
   edges = ["top"],
+  bottomSpace,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
-  const paddingBottom = insets.bottom + spacing.lg;
+  const paddingBottom = Math.max(insets.bottom, bottomSpace ?? 0) + spacing.lg;
 
   return (
     <SafeAreaView edges={edges} className={`flex-1 bg-background ${className ?? ""}`}>
