@@ -9,7 +9,7 @@ export const CODE_MESSAGES: Record<ApiCode, string> = {
   validation_failed: "Some of the details are not right. Check them and try again.",
   username_taken: "That username is already taken. Choose another one.",
   email_in_use: "An account already uses that email. Sign in instead.",
-  invalid_credentials: "Email or password is incorrect.",
+  invalid_credentials: "Username or password is incorrect.",
   invalid_session: "Your session has ended. Sign in again.",
   session_revoked: "Your session was ended somewhere else. Sign in again.",
   email_not_verified: "Confirm your email address first. Check your inbox for the code.",

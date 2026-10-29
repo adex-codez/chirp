@@ -12,7 +12,7 @@ import { SonglineRule } from "@/components/songline";
 import { useSessionStore } from "@/store/use-session-store";
 
 export default function SignIn() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
@@ -21,7 +21,7 @@ export default function SignIn() {
 
   const submit = async () => {
     try {
-      await signIn(email.trim(), password);
+      await signIn(username.trim(), password);
     } catch {
       // Error text already lives in the store.
     }
@@ -34,13 +34,12 @@ export default function SignIn() {
     >
       <View className="gap-4">
         <FieldInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
+          label="Username"
+          value={username}
+          onChangeText={setUsername}
           autoCapitalize="none"
-          keyboardType="email-address"
           editable={!isBusy}
-          placeholder="you@example.com"
+          placeholder="river_song"
         />
         <FieldInput
           label="Password"

@@ -11,9 +11,9 @@ import (
 
 type authService interface {
 	SignUp(ctx context.Context, username, email, password, deviceLabel string) (service.SignUpResult, error)
-	VerifyEmail(ctx context.Context, email, code, deviceLabel string) (service.AuthResult, error)
-	ResendVerification(ctx context.Context, email string) (service.SignUpResult, error)
-	SignIn(ctx context.Context, email, password, deviceLabel string) (service.AuthResult, error)
+	VerifyEmail(ctx context.Context, identifier, code, deviceLabel string) (service.AuthResult, error)
+	ResendVerification(ctx context.Context, identifier string) (service.SignUpResult, error)
+	SignIn(ctx context.Context, username, password, deviceLabel string) (service.AuthResult, error)
 	Profile(ctx context.Context, accessToken string) (service.PublicUser, error)
 	Refresh(ctx context.Context, refreshToken, deviceLabel string) (service.AuthResult, error)
 	SignOut(ctx context.Context, refreshToken string) error
@@ -38,6 +38,13 @@ func NewAuthHandler(svc authService) *AuthHandler {
 	return &AuthHandler{service: svc}
 }
 
+func identifierOrEmail(identifier, email string) string {
+	if strings.TrimSpace(identifier) != "" {
+		return identifier
+	}
+	return email
+}
+
 type signUpRequest struct {
 	Username    string `json:"username" binding:"required"`
 	Email       string `json:"email" binding:"required"`
@@ -46,17 +53,19 @@ type signUpRequest struct {
 }
 
 type verifyRequest struct {
-	Email       string `json:"email" binding:"required"`
+	Identifier  string `json:"identifier"`
+	Email       string `json:"email"`
 	Code        string `json:"code" binding:"required"`
 	DeviceLabel string `json:"device_label"`
 }
 
 type resendRequest struct {
-	Email string `json:"email" binding:"required"`
+	Identifier string `json:"identifier"`
+	Email      string `json:"email"`
 }
 
 type signInRequest struct {
-	Email       string `json:"email" binding:"required"`
+	Username    string `json:"username" binding:"required"`
 	Password    string `json:"password" binding:"required"`
 	DeviceLabel string `json:"device_label"`
 }
@@ -118,10 +127,15 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 func (h *AuthHandler) Verify(c *gin.Context) {
 	var req verifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Validation(c, map[string]string{"body": "Send a JSON body with an email and code."})
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username or email and code."})
 		return
 	}
-	result, err := h.service.VerifyEmail(c.Request.Context(), req.Email, req.Code, req.DeviceLabel)
+	identifier := identifierOrEmail(req.Identifier, req.Email)
+	if strings.TrimSpace(identifier) == "" {
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username or email and code."})
+		return
+	}
+	result, err := h.service.VerifyEmail(c.Request.Context(), identifier, req.Code, req.DeviceLabel)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -133,10 +147,15 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 func (h *AuthHandler) Resend(c *gin.Context) {
 	var req resendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Validation(c, map[string]string{"body": "Send a JSON body with an email."})
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username or email."})
 		return
 	}
-	result, err := h.service.ResendVerification(c.Request.Context(), req.Email)
+	identifier := identifierOrEmail(req.Identifier, req.Email)
+	if strings.TrimSpace(identifier) == "" {
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username or email."})
+		return
+	}
+	result, err := h.service.ResendVerification(c.Request.Context(), identifier)
 	if err != nil {
 		response.Fail(c, err)
 		return
@@ -148,10 +167,10 @@ func (h *AuthHandler) Resend(c *gin.Context) {
 func (h *AuthHandler) SignIn(c *gin.Context) {
 	var req signInRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Validation(c, map[string]string{"body": "Send a JSON body with an email and password."})
+		response.Validation(c, map[string]string{"body": "Send a JSON body with a username and password."})
 		return
 	}
-	result, err := h.service.SignIn(c.Request.Context(), req.Email, req.Password, req.DeviceLabel)
+	result, err := h.service.SignIn(c.Request.Context(), req.Username, req.Password, req.DeviceLabel)
 	if err != nil {
 		response.Fail(c, err)
 		return

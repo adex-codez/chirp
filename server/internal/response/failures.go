@@ -16,7 +16,7 @@ var failures = map[string]failure{
 	CodeValidationFailed:    {http.StatusBadRequest, "validation failed"},
 	CodeUsernameTaken:       {http.StatusConflict, "username is already taken"},
 	CodeEmailInUse:          {http.StatusConflict, "email is already in use"},
-	CodeInvalidCredentials:  {http.StatusUnauthorized, "invalid email or password"},
+	CodeInvalidCredentials:  {http.StatusUnauthorized, "invalid username or password"},
 	CodeInvalidSession:      {http.StatusUnauthorized, "invalid or expired session"},
 	CodeSessionRevoked:      {http.StatusUnauthorized, "session was revoked, sign in again"},
 	CodeEmailNotVerified:    {http.StatusForbidden, "email is not verified, check your inbox for the code"},

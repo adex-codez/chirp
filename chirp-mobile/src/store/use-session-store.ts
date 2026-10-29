@@ -60,7 +60,7 @@ type SessionState = {
   signUp: (username: string, email: string, password: string) => Promise<void>;
   verify: (code: string) => Promise<void>;
   resendCode: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (username: string, password: string) => Promise<void>;
   socialSignIn: (
     provider: "apple" | "google",
     idToken: string,
@@ -291,7 +291,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         return;
       }
       const data = await runRequest<AuthResponse>(set, "/auth/verify", {
-        email: pendingEmail,
+        identifier: pendingEmail,
         code,
       });
       await applySession(data);
@@ -303,15 +303,15 @@ export const useSessionStore = create<SessionState>((set, get) => {
         set({ error: "Start by signing up first." });
         return;
       }
-      await runRequest(set, "/auth/verify/resend", { email: pendingEmail });
+      await runRequest(set, "/auth/verify/resend", { identifier: pendingEmail });
       set({ isBusy: false });
     },
 
-    signIn: async (email, password) => {
+    signIn: async (username, password) => {
       let data: AuthResponse;
       try {
         data = await runRequest<AuthResponse>(set, "/auth/login", {
-          email,
+          username,
           password,
         });
       } catch (error) {
@@ -319,7 +319,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         set({ error: message, isBusy: false });
         // An unverified sign-in parks the person at verification.
         if (error instanceof ApiError && error.code === "email_not_verified") {
-          set({ status: "pending-verification", pendingEmail: email });
+          set({ status: "pending-verification", pendingEmail: username });
           await persist();
         }
         throw error;

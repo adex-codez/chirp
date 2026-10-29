@@ -41,7 +41,7 @@ var (
 	ErrValidation          = errors.New("validation failed")
 	ErrUsernameTaken       = errors.New("username is already taken")
 	ErrEmailTaken          = errors.New("email is already in use")
-	ErrInvalidSignIn       = errors.New("invalid email or password")
+	ErrInvalidSignIn       = errors.New("invalid username or password")
 	ErrInvalidSession      = errors.New("invalid or expired session")
 	ErrEmailNotVerified    = errors.New("email is not verified")
 	ErrInvalidChallenge    = errors.New("invalid or expired code")
@@ -213,9 +213,8 @@ func (s *AuthService) SignUp(ctx context.Context, username, email, password, dev
 
 // VerifyEmail consumes a verification challenge and, on success, signs the
 // User in with its first token pair.
-func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel string) (AuthResult, error) {
-	email = strings.TrimSpace(email)
-	user, err := s.users.GetUserByEmail(ctx, email)
+func (s *AuthService) VerifyEmail(ctx context.Context, identifier, code, deviceLabel string) (AuthResult, error) {
+	user, err := s.getUserByEmailOrUsername(ctx, identifier)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrInvalidChallenge
@@ -239,9 +238,8 @@ func (s *AuthService) VerifyEmail(ctx context.Context, email, code, deviceLabel 
 }
 
 // ResendVerification invalidates the pending challenge and issues a fresh one.
-func (s *AuthService) ResendVerification(ctx context.Context, email string) (SignUpResult, error) {
-	email = strings.TrimSpace(email)
-	user, err := s.users.GetUserByEmail(ctx, email)
+func (s *AuthService) ResendVerification(ctx context.Context, identifier string) (SignUpResult, error) {
+	user, err := s.getUserByEmailOrUsername(ctx, identifier)
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return SignUpResult{}, ErrNoPendingVerify
@@ -276,8 +274,8 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 	if err != nil {
 		return SignUpResult{}, err
 	}
-	if err := s.mailer.SendVerificationCode(ctx, email, code); err != nil {
-		slog.Warn("verification Email failed to send", "error", err, "email", email)
+	if err := s.mailer.SendVerificationCode(ctx, user.Email, code); err != nil {
+		slog.Warn("verification Email failed to send", "error", err, "email", user.Email)
 	}
 	result := SignUpResult{User: publicUser(user), VerificationSent: true}
 	if s.devExposeCodes {
@@ -290,8 +288,8 @@ func (s *AuthService) ResendVerification(ctx context.Context, email string) (Sig
 // checked before verification state so wrong passwords always return the same
 // generic error and Users cannot be enumerated; only a correct password on an
 // unverified Email reveals that verification is pending.
-func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel string) (AuthResult, error) {
-	user, err := s.users.GetUserByEmail(ctx, strings.TrimSpace(email))
+func (s *AuthService) SignIn(ctx context.Context, username, password, deviceLabel string) (AuthResult, error) {
+	user, err := s.users.GetUserByUsername(ctx, strings.TrimSpace(username))
 	if err != nil {
 		if errors.Is(err, repository.ErrAuthNotFound) {
 			return AuthResult{}, ErrInvalidSignIn
@@ -306,6 +304,14 @@ func (s *AuthService) SignIn(ctx context.Context, email, password, deviceLabel s
 	}
 	result, _, err := s.issueSession(ctx, user, deviceLabel)
 	return result, err
+}
+
+func (s *AuthService) getUserByEmailOrUsername(ctx context.Context, identifier string) (repository.AuthUser, error) {
+	identifier = strings.TrimSpace(identifier)
+	if strings.Contains(identifier, "@") {
+		return s.users.GetUserByEmail(ctx, identifier)
+	}
+	return s.users.GetUserByUsername(ctx, identifier)
 }
 
 // Refresh rotates a refresh grant: the presenting token is single-use, and a

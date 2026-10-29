@@ -41,7 +41,11 @@ export default function Verify() {
       title="Check your email."
       intro={
         pendingEmail
-          ? `We sent a 6-digit code to ${pendingEmail}. It expires in 20 minutes.`
+          ? `We sent a 6-digit code to ${
+              pendingEmail.includes("@")
+                ? pendingEmail
+                : "the email address on your account"
+            }. It expires in 20 minutes.`
           : "Choose a Username first, then enter the code we send you."
       }
       step={2}
