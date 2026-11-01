@@ -92,6 +92,8 @@ export function FieldInput({
 const styles = StyleSheet.create({
   toggle: {
     position: "absolute",
+    // 16pt icon inset to match the pl-4 placeholder inset.
+    paddingRight: 8,
     top: 0,
     bottom: 0,
     right: 0,
