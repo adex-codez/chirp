@@ -145,6 +145,57 @@ export function Phone({ size = 22, color, strokeWidth = 1.6 }: IconProps) {
   );
 }
 
+export function Eye({ size = 18, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Path
+        d="M2 12s3-6.5 10-6.5 10 6.5 10 6.5-3 6.5-10 6.5-10-6.5-10-6.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx="12" cy="12" r="3.5" stroke={color} strokeWidth={strokeWidth} />
+    </Svg>
+  );
+}
+
+export function EyeClosed({ size = 18, color, strokeWidth = 1.5 }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Path
+        d="M2 12s3-6.5 10-6.5 10 6.5 10 6.5-3 6.5-10 6.5-10-6.5-10-6.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx="12" cy="12" r="3.5" stroke={color} strokeWidth={strokeWidth} />
+      <Path
+        d="M21.5 2.5 2.5 21.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function Sliders({ size = 22, color, strokeWidth = 1.6 }: IconProps) {
   return (
     <Svg
