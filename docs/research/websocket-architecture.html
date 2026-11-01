@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A research brief on WebSocket architecture for Chirp, covering connection setup, delivery patterns, performance, security, and scaling.">
+  <title>WebSocket architecture — Chirp research</title>
+  <style>
+    :root {
+      --night: #071627;
+      --navy: #0f2a44;
+      --ink: #182533;
+      --muted: #586879;
+      --paper: #f8f7f2;
+      --line: #cbd3d9;
+      --gold: #ffc247;
+      --blue-wash: #e2eaf1;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.65 var(--sans);
+    }
+    a { color: var(--navy); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { text-decoration-color: var(--gold); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+    .masthead {
+      position: relative;
+      overflow: hidden;
+      background: var(--night);
+      color: #f8f7f2;
+      padding: 52px 0 58px;
+      border-bottom: 5px solid var(--gold);
+    }
+    .masthead::after {
+      content: ""; position: absolute; width: 330px; height: 330px;
+      right: max(3vw, calc((100vw - 1040px) / 2)); top: -195px;
+      border: 1px solid rgba(255,194,71,.4); border-radius: 50%;
+      box-shadow: 0 0 0 30px rgba(255,194,71,.04), 0 0 0 60px rgba(255,194,71,.03);
+      pointer-events: none;
+    }
+    .eyebrow, .label { font: 700 11px/1.5 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+    .eyebrow { color: var(--gold); }
+    h1 {
+      position: relative; z-index: 1; max-width: 720px; margin: 18px 0 14px;
+      font: italic 600 clamp(42px, 7vw, 72px)/1.02 var(--serif); letter-spacing: -.035em;
+    }
+    .dek { max-width: 640px; margin: 0; color: #d4dce4; font-size: 18px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 32px; color: #b9c6d1; font: 11px/1.5 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    main { padding: 40px 0 72px; }
+    .intro { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 48px; align-items: start; }
+    .intro p { max-width: 680px; margin: 0; font-size: 18px; }
+    .recommendation { border-left: 3px solid var(--gold); padding: 2px 0 2px 18px; }
+    .recommendation .label { color: var(--muted); }
+    .recommendation p { margin: 9px 0 0; font-size: 15px; }
+    .contents { margin: 42px 0 58px; padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .contents .label { color: var(--muted); }
+    .contents nav { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 11px; }
+    .contents a { font-size: 14px; }
+    section { scroll-margin-top: 20px; margin: 0 0 58px; }
+    .section-head { display: grid; grid-template-columns: 46px 1fr; gap: 16px; align-items: baseline; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+    .num { color: #8d9ba8; font: 12px var(--mono); }
+    h2 { margin: 0; color: var(--navy); font: 600 30px/1.2 var(--serif); }
+    h3 { margin: 25px 0 8px; color: var(--navy); font-size: 18px; line-height: 1.35; }
+    p { margin: 12px 0; }
+    .tag { display: inline-block; margin-right: 8px; color: #52697e; font: 700 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .callout { margin: 20px 0; padding: 16px 20px; background: var(--blue-wash); border-radius: 8px; }
+    .callout p { margin: 0; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); margin: 24px 0 12px; border-top: 1px solid var(--navy); border-bottom: 1px solid var(--navy); }
+    .flow div { position: relative; padding: 17px 13px 18px 0; font: 12px/1.5 var(--mono); color: var(--navy); }
+    .flow div:not(:last-child)::after { content: "→"; position: absolute; right: 9px; top: 16px; color: #a47822; }
+    .flow small { display: block; margin-top: 6px; color: var(--muted); font: 12px/1.45 var(--sans); }
+    .table-wrap { overflow-x: auto; margin: 22px 0; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+    th { padding: 10px 12px 10px 0; border-bottom: 2px solid var(--navy); color: var(--navy); font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    td { vertical-align: top; padding: 13px 14px 13px 0; border-bottom: 1px solid var(--line); }
+    td:first-child { min-width: 135px; font-weight: 650; }
+    .steps { counter-reset: step; list-style: none; padding: 0; margin: 20px 0; }
+    .steps li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .steps li::before { content: counter(step, decimal-leading-zero); color: #8d9ba8; font: 12px var(--mono); padding-top: 4px; }
+    .sources { columns: 2; column-gap: 44px; padding-left: 20px; font-size: 13px; }
+    .sources li { break-inside: avoid; margin: 0 0 12px; }
+    footer { padding: 20px 0 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    code { font: .9em var(--mono); background: rgba(15,42,68,.07); padding: 2px 5px; border-radius: 3px; }
+    @media (max-width: 700px) {
+      .wrap { padding: 0 20px; }
+      .masthead { padding: 40px 0 42px; }
+      .intro { grid-template-columns: 1fr; gap: 24px; }
+      .recommendation { max-width: 500px; }
+      .flow { grid-template-columns: 1fr; border-bottom: 0; }
+      .flow div { padding: 12px 0; border-bottom: 1px solid var(--line); }
+      .flow div:not(:last-child)::after { content: "↓"; right: 5px; }
+      .sources { columns: 1; }
+      h2 { font-size: 26px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap">
+      <div class="eyebrow">Chirp · Engineering research</div>
+      <h1>WebSocket architecture</h1>
+      <p class="dek">How to open realtime connections, serve different feature needs, protect performance, and scale delivery for a mobile social app.</p>
+      <div class="meta"><span>Research brief</span><span>Primary sources</span><span>Updated 29 October 2026</span></div>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="intro">
+      <p>Chirp has a Go and Gin backend, a React Native mobile app, and Postgres as its durable store. WebSockets should add a fast delivery path while domain services and the database remain the source of truth.</p>
+      <aside class="recommendation"><div class="label">Recommended start</div><p>One authenticated <code>/ws</code> connection per app session, bounded read/write loops, typed events, and feature-specific delivery guarantees.</p></aside>
+    </div>
+    <div class="contents">
+      <div class="label">On this page</div>
+      <nav aria-label="Page sections">
+        <a href="#opening">Open a connection</a><a href="#lifecycle">Lifecycle</a><a href="#features">Feature patterns</a><a href="#performance">Performance</a><a href="#scaling">Scaling</a><a href="#security">Security</a><a href="#architecture">Architecture</a><a href="#sources">Sources</a>
+      </nav>
+    </div>
+
+    <section id="opening">
+      <div class="section-head"><span class="num">01</span><h2>Open the connection</h2></div>
+      <p><span class="tag">Protocol fact</span>WebSocket starts with an HTTP Upgrade handshake. A successful server response switches protocols; then both sides exchange framed messages over one persistent connection. Use <code>wss://</code> over TLS in production. The protocol also defines subprotocol negotiation, Origin, Ping/Pong, and the close handshake.</p>
+      <div class="flow" aria-label="Connection opening flow">
+        <div>HTTPS request<small>Client sends upgrade request and access proof</small></div>
+        <div>Authenticate<small>Validate token, session, and origin policy</small></div>
+        <div>Upgrade<small>Accept the handshake or return HTTP error</small></div>
+        <div>Register<small>Attach connection to the authenticated User</small></div>
+        <div>Exchange<small>Read commands; write authorized events</small></div>
+      </div>
+      <div class="callout"><p><span class="tag">Recommendation</span>Authenticate before upgrading. Prefer a short-lived access token in handshake headers when the shipped mobile runtime supports it. If not, mint a short-lived, single-use ticket through HTTPS and consume it at connect time. Never put long-lived credentials in a URL. Origin checks help protect browser clients but do not authenticate native apps.</p></div>
+      <p>Use a versioned application envelope such as <code>chirp.v1</code> only where protocol compatibility needs it. The subprotocol is a version label, not an access-control mechanism. Keep a single endpoint and authorize each command and subscription independently.</p>
+    </section>
+
+    <section id="lifecycle">
+      <div class="section-head"><span class="num">02</span><h2>Make connection lifecycle explicit</h2></div>
+      <p>Represent a connection as <code>connecting → authenticated → active → closing → closed</code>. Register it by User and connection ID; remove it idempotently when the socket closes. A User may have multiple devices, so online state should account for more than one live connection.</p>
+      <ul>
+        <li>Use Ping/Pong heartbeats and set deadlines shorter than the infrastructure’s idle timeout.</li>
+        <li>Reconnect with exponential backoff and jitter; refresh credentials over the existing HTTPS flow.</li>
+        <li>On reconnect, fetch missed durable state from the API using a cursor; deduplicate events by stable ID.</li>
+        <li>During shutdown, reject new upgrades, notify connected clients, drain for a bounded period, then close.</li>
+      </ul>
+      <p>Mobile networks and app backgrounding make disconnection normal. A live connection does not prove that an event was received or processed.</p>
+    </section>
+
+    <section id="features">
+      <div class="section-head"><span class="num">03</span><h2>Use one transport, different delivery rules</h2></div>
+      <p>Keep typed commands and server-pushed events on the shared connection. Let existing domain services validate and persist changes; the socket layer handles authentication, bounded decoding, routing, and subscription authorization.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Feature</th><th>Delivery model</th><th>Reconnect behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Chat messages</td><td>Persist first, then publish to authorized conversation members.</td><td>Fetch history after the last cursor; deduplicate by message/event ID.</td></tr>
+          <tr><td>Presence</td><td>Ephemeral per-User state with heartbeat leases and device counts.</td><td>Expire stale leases; rebuild from active connections.</td></tr>
+          <tr><td>Typing / read state</td><td>Short-lived and conversation scoped; coalesce repeated updates.</td><td>Drop under congestion; emit fresh state when useful.</td></tr>
+          <tr><td>Notifications</td><td>Persist unread state, then push a wake-up or update event.</td><td>Fetch authoritative inbox state from HTTPS APIs.</td></tr>
+          <tr><td>Rooms</td><td>Server-authorized subscription to a conversation or topic.</td><td>Reauthorize membership on subscribe and sensitive commands.</td></tr>
+        </tbody>
+      </table></div>
+      <p>Durable chat and notification state belongs in Postgres. Presence and typing are temporary hints. This split lets transient updates be dropped while clients recover durable state after reconnect.</p>
+    </section>
+
+    <section id="performance">
+      <div class="section-head"><span class="num">04</span><h2>Protect performance and slow clients</h2></div>
+      <p>For Go, use one reader and one writer loop per connection. Producers send through a bounded outbound queue; only the writer loop calls write methods. Set message-size limits and read/write deadlines, and validate message type and rate before invoking business logic.</p>
+      <ul>
+        <li>Never use an unbounded per-client queue. Drop or coalesce transient updates; disconnect slow clients that cannot keep up with durable events.</li>
+        <li>Batch recipient lookups and encode an event once when payloads are identical.</li>
+        <li>Measure before enabling compression; it trades CPU for bandwidth and may be unsuitable for mixed secret-bearing payloads.</li>
+        <li>Bound concurrent handshakes and connections per User, device, and IP.</li>
+      </ul>
+      <p>Track active connections, queue depth and drops, bytes and messages per second, fanout size, handshake time, and event enqueue-to-write latency. Use measurements to set resource limits.</p>
+    </section>
+
+    <section id="scaling">
+      <div class="section-head"><span class="num">05</span><h2>Scale fanout with clear guarantees</h2></div>
+      <p>For one Go process, an in-memory map from User or room to connections is enough. It cannot find a User connected to another replica. Once Chirp runs multiple backend instances, add shared event fanout; connection affinity alone does not deliver events across instances.</p>
+      <p>Keep a small event-bus seam. Start in-process, then add Redis Pub/Sub for low-latency ephemeral fanout if multiple replicas need it. Redis Pub/Sub is at-most-once: disconnected subscribers miss messages. Pair it with durable Postgres state and client reconciliation. Use a durable stream or queue when replay or stronger delivery guarantees matter.</p>
+      <p>Postgres <code>LISTEN/NOTIFY</code> can wake up other processes, but it is not a message history. For events that must be published whenever a database change commits, a transactional outbox can store the event alongside the domain update and retry publishing asynchronously.</p>
+    </section>
+
+    <section id="security">
+      <div class="section-head"><span class="num">06</span><h2>Secure each handshake and message</h2></div>
+      <ul>
+        <li>Use TLS and an explicit browser Origin allowlist; treat Origin as a browser defense, never as identity.</li>
+        <li>Authenticate at handshake and authorize every command and room subscription.</li>
+        <li>Close or revalidate connections when the short-lived access token expires or the session is revoked.</li>
+        <li>Apply message-size limits, schema allowlists, rate limits, and conversation membership checks.</li>
+        <li>Do not log tokens or message bodies. Log lifecycle, close reasons, authorization failures, malformed input, queue drops, and abnormal disconnects.</li>
+      </ul>
+    </section>
+
+    <section id="architecture">
+      <div class="section-head"><span class="num">07</span><h2>Recommended first architecture</h2></div>
+      <ol class="steps">
+        <li><span>Add authenticated <code>/ws</code> route in Gin. Validate access token and applicable Origin policy before upgrade.</span></li>
+        <li><span>Use a maintained Go WebSocket implementation with one read loop and one write loop per connection, bounded queues, heartbeat deadlines, and cleanup.</span></li>
+        <li><span>Define a typed, versioned event envelope and server-authorized subscriptions. Keep domain writes in services.</span></li>
+        <li><span>Persist chat and notification state before publishing. Reconcile on reconnect from Postgres-backed APIs.</span></li>
+        <li><span>Start with in-process routing. Add Redis Pub/Sub when replicas need ephemeral cross-node fanout; add a durable outbox or stream when delivery requirements justify it.</span></li>
+      </ol>
+      <div class="callout"><p><span class="tag">Tradeoff</span>This keeps the first release operationally small while supporting several realtime features. In-process routing is process-local; a broker later adds cross-node delivery along with duplicate, loss, and failure modes that need explicit handling.</p></div>
+    </section>
+
+    <section id="sources">
+      <div class="section-head"><span class="num">08</span><h2>Primary sources</h2></div>
+      <p>Protocol facts and platform/library behavior are grounded in first-party specifications and documentation. The architecture choices above are recommendations for Chirp’s current stack.</p>
+      <ol class="sources">
+        <li><a href="https://www.rfc-editor.org/rfc/rfc6455.html">IETF RFC 6455 — The WebSocket Protocol</a></li>
+        <li><a href="https://gin-gonic.com/en/docs/server-config/websocket/">Gin: WebSocket support</a></li>
+        <li><a href="https://reactnative.dev/docs/network">React Native: networking</a></li>
+        <li><a href="https://reactnative.dev/docs/global-WebSocket">React Native: WebSocket API</a></li>
+        <li><a href="https://pkg.go.dev/github.com/gorilla/websocket">Gorilla WebSocket Go package documentation</a></li>
+        <li><a href="https://redis.io/docs/latest/develop/pubsub/">Redis Pub/Sub delivery semantics</a></li>
+        <li><a href="https://redis.io/docs/latest/develop/use-cases/pub-sub/">Redis Pub/Sub and Streams use cases</a></li>
+        <li><a href="https://www.postgresql.org/docs/current/sql-listen.html">PostgreSQL LISTEN</a></li>
+        <li><a href="https://www.postgresql.org/docs/current/sql-notify.html">PostgreSQL NOTIFY</a></li>
+        <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/WebSocket_Security_Cheat_Sheet.html">OWASP WebSocket Security Cheat Sheet</a></li>
+      </ol>
+    </section>
+    <footer>Based on Chirp’s repository context and the linked primary sources. WebSocket support in the shipped Expo and React Native versions should be confirmed against the actual iOS and Android runtime.</footer>
+  </main>
+</body>
+</html>
