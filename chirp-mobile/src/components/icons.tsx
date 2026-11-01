@@ -32,6 +32,26 @@ export function ChevronLeft({ size = 18, color, strokeWidth = 1.5 }: IconProps) 
   );
 }
 
+export function Plus({ size = 24, color, strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Path
+        d="M12 5v14M5 12h14"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 export function Check({ size = 14, color, strokeWidth = 2 }: IconProps) {
   return (
     <Svg

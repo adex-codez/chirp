@@ -28,7 +28,7 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig,
 	router.GET("/ready", health.Ready)
 
 	authRepo := repository.NewAuthRepository(pool)
-	authService := service.NewAuthService(
+	authApp := service.NewAuthService(
 		authRepo,
 		authRepo,
 		authRepo,
@@ -39,7 +39,7 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig,
 		authCfg.GoogleAudiences,
 		mail.NewClient(mailCfg.SendlibAPIKey, mailCfg.SendlibBaseURL, mailCfg.SendlibFrom),
 	)
-	auth := handler.NewAuthHandler(authService)
+	auth := handler.NewAuthHandler(authApp)
 	authGroup := router.Group("/auth")
 	authGroup.POST("/signup", auth.SignUp)
 	authGroup.POST("/verify", auth.Verify)
@@ -55,6 +55,14 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig,
 	authGroup.POST("/logout", auth.SignOut)
 	authGroup.POST("/logout-all", auth.SignOutAll)
 	authGroup.GET("/me", auth.Profile)
+
+	contacts := handler.NewContactHandler(
+		authApp,
+		service.NewContactsService(repository.NewContactRepository(pool)),
+	)
+	contactGroup := router.Group("/contacts")
+	contactGroup.GET("", contacts.List)
+	contactGroup.POST("", contacts.Add)
 
 	return router, nil
 }

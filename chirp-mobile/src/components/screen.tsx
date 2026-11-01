@@ -13,6 +13,7 @@ import { spacing } from "@/theme/spacing";
 
 type ScreenProps = {
   children: ReactNode;
+  overlay?: ReactNode;
   className?: string;
   contentClassName?: string;
   scroll?: boolean;
@@ -23,6 +24,7 @@ type ScreenProps = {
 
 export function Screen({
   children,
+  overlay,
   className,
   contentClassName,
   scroll = true,
@@ -58,6 +60,7 @@ export function Screen({
           </View>
         )}
       </KeyboardAvoidingView>
+      {overlay}
     </SafeAreaView>
   );
 }
