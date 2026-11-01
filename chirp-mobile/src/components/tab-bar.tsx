@@ -156,7 +156,11 @@ export function TabBar({ state, navigation, insets }: TabBarProps) {
               )}
 
               <Typography
-                style={[barLabel, { marginTop: layout.labelGap, color: selected ? accent : muted }]}
+                align="center"
+                style={[
+                  barLabel,
+                  { width: "100%", marginTop: layout.labelGap, color: selected ? accent : muted },
+                ]}
                 type="body-xs"
                 weight={selected ? "bold" : "normal"}
               >
