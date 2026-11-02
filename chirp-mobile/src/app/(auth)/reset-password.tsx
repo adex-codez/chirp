@@ -1,5 +1,5 @@
 import { Link, router } from "expo-router";
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
 import { View } from "react-native";

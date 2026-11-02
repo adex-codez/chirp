@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { useThemeColor } from "heroui-native/hooks";
 import { Typography } from "heroui-native/text";
 

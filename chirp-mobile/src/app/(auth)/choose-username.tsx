@@ -1,4 +1,4 @@
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { useState } from "react";
 
 import { AuthShell } from "@/components/auth-shell";

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { useThemeColor } from "heroui-native/hooks";
 import { Typography } from "heroui-native/text";
 

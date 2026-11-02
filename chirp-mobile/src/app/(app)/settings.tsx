@@ -1,4 +1,4 @@
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { ControlField } from "heroui-native/control-field";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";

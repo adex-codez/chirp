@@ -4,7 +4,7 @@ import {
   makeRedirectUri,
   useAuthRequest,
 } from "expo-auth-session";
-import { Button } from "heroui-native/button";
+import { Button } from "@/components/button";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 
