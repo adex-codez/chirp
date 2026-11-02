@@ -28,8 +28,8 @@ export function CodeField({
   isDisabled = false,
   label,
 }: CodeFieldProps) {
-  const inputs = useRef<Array<TextInput | null>>([]);
-  const shift = useRef(new Animated.Value(0)).current;
+  const inputs = useRef<(TextInput | null)[]>([]);
+  const [shift] = useState(() => new Animated.Value(0));
   const wasInvalid = useRef(isInvalid);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 

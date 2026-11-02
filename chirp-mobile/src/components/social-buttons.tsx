@@ -1,19 +1,13 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import {
-  ResponseType,
-  makeRedirectUri,
-  useAuthRequest,
-} from "expo-auth-session";
+  GoogleSignin,
+  isSuccessResponse,
+} from "@react-native-google-signin/google-signin";
 import { Button } from "@/components/button";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 
-import {
-  googleClientId,
-  googleConfigured,
-  googleDiscovery,
-  newAppleNonce,
-} from "@/lib/social";
+import { googleConfigured, newAppleNonce } from "@/lib/social";
 import { useSessionStore } from "@/store/use-session-store";
 import { GoogleMark } from "@/components/provider-marks";
 
@@ -21,7 +15,7 @@ import { GoogleMark } from "@/components/provider-marks";
  * Social sign-in buttons, shared by the sign-in and sign-up screens.
  * Apple renders as the platform control, and only where the platform
  * offers it. Google uses a standard button with its brand mark that
- * opens the provider in a browser. Store errors render on the screen,
+ * runs the native sign-in sheet. Store errors render on the screen,
  * which owns the single error slot.
  */
 export function SocialButtons() {
@@ -32,31 +26,6 @@ export function SocialButtons() {
   useEffect(() => {
     void AppleAuthentication.isAvailableAsync().then(setAppleAvailable);
   }, []);
-
-  const redirectUri = makeRedirectUri({ scheme: "chirpmobile" });
-  const [googleRequest, googleResponse, promptGoogle] = useAuthRequest(
-    {
-      clientId: googleClientId(),
-      redirectUri,
-      scopes: ["openid", "profile", "email"],
-      responseType: ResponseType.IdToken,
-    },
-    googleDiscovery,
-  );
-
-  useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const idToken = googleResponse.params.id_token;
-      if (typeof idToken === "string" && idToken !== "") {
-        void socialSignIn("google", idToken);
-      }
-    } else if (googleResponse?.type === "error") {
-      useSessionStore.setState({
-        error: "Google sign-in failed. Try again.",
-        isBusy: false,
-      });
-    }
-  }, [googleResponse, socialSignIn]);
 
   const signInWithApple = async () => {
     try {
@@ -92,9 +61,21 @@ export function SocialButtons() {
       return;
     }
     try {
-      await promptGoogle();
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if (isSuccessResponse(response)) {
+        // Google hands back a user without a token only when no web client
+        // ID was configured, which googleConfigured() already prevents.
+        if (!response.data.idToken) {
+          throw new Error("Google sign-in returned no identity token.");
+        }
+        await socialSignIn("google", response.data.idToken);
+      }
     } catch {
-      // Failures surface through the response effect or store error.
+      // Cancellation resolves as a result; every rejection is a real failure.
+      useSessionStore.setState({
+        error: "Google sign-in failed. Try again.",
+      });
     }
   };
 
@@ -119,7 +100,7 @@ export function SocialButtons() {
         <Button
           variant="outline"
           onPress={() => void signInWithGoogle()}
-          isDisabled={isBusy || !googleRequest}
+          isDisabled={isBusy}
           accessibilityLabel="Continue with Google"
         >
           <View className="flex-row items-center justify-center gap-2">

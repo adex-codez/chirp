@@ -1,3 +1,4 @@
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
@@ -9,26 +10,22 @@ import { Platform } from "react-native";
  */
 export const googleClientIds = {
   ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "",
-  android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? "",
   web: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
 };
 
-export function googleClientId(): string {
-  return (
-    Platform.select({
-      ios: googleClientIds.ios,
-      android: googleClientIds.android,
-      default: googleClientIds.web,
-    }) ?? ""
-  );
+// The native Google module is absent on web, so configuring there throws.
+if (Platform.OS !== "web") {
+  GoogleSignin.configure({
+    iosClientId: googleClientIds.ios,
+    webClientId: googleClientIds.web,
+  });
 }
 
-export const googleDiscovery = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-};
-
 export function googleConfigured(): boolean {
-  return googleClientId() !== "";
+  if (Platform.OS === "web") return false;
+  const clientId =
+    Platform.OS === "ios" ? googleClientIds.ios : googleClientIds.web;
+  return clientId !== "";
 }
 
 /** Raw Apple nonce plus its sha256: the hash travels in the sign-in request,
