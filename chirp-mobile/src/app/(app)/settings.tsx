@@ -84,7 +84,7 @@ export default function Settings() {
             onChangeText={setNewPassword}
             secureTextEntry
             editable={!isBusy}
-            placeholder="8-15 chars, upper, lower, number & symbol"
+            hint="8-15 chars, upper, lower, number & symbol"
           />
           <Button variant="secondary" onPress={submitPassword} isDisabled={isBusy}>
             {isBusy ? "Saving…" : "Add password"}

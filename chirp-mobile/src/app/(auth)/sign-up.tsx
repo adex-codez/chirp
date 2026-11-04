@@ -59,7 +59,7 @@ export default function SignUp() {
           onChangeText={setPassword}
           secureTextEntry
           editable={!isBusy}
-          placeholder="8-15 chars, upper, lower, number & symbol"
+          hint="8-15 chars, upper, lower, number & symbol"
         />
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>
