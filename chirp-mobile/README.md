@@ -7,16 +7,16 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 1. Install dependencies
 
    ```bash
-   bun install
+   pnpm install
    ```
 
 2. Start the app
 
    ```bash
-   bun start
+   pnpm start
    ```
 
-`bun start` serves the dev client over your local network, so the phone
+`pnpm start` serves the dev client over your local network, so the phone
 must share that network with your machine. It expects the development
 build to be installed already. Set `EXPO_PUBLIC_API_URL` to your machine's
 LAN address (for example `http://192.168.1.20:8080`) so the app can reach
@@ -29,23 +29,23 @@ build. Both platforms go through EAS, which means iOS builds work from
 Windows too.
 
 ```bash
-bun dev-build            # android and ios
-bun dev-build:android
-bun dev-build:ios
+pnpm dev-build            # android and ios
+pnpm dev-build:android
+pnpm dev-build:ios
 ```
 
 Sign in with `eas login` once so the CLI has an Expo account. Each
 script is a plain `eas build --profile development` call, so `eas`
-flags still apply: `bun dev-build:ios -- --no-wait`.
+flags still apply: `pnpm dev-build:ios -- --no-wait`.
 
 Install the artifact EAS links when the build finishes, then run
-`bun start`. The iOS simulator needs the simulator profile instead.
+`pnpm start`. The iOS simulator needs the simulator profile instead.
 
 ```bash
-bunx eas build --profile development-simulator --platform ios
+pnpm exec eas build --profile development-simulator --platform ios
 ```
 
-`npm run` runs the same scripts if Bun is not installed.
+`npm run` runs the same scripts if pnpm is not installed.
 
 In the output, you'll find options to open the app in a
 
