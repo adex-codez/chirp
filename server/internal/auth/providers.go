@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -24,9 +23,9 @@ const (
 	ProviderApple  = "apple"
 	ProviderGoogle = "google"
 
-	appleKeysURL   = "https://appleid.apple.com/auth/keys"
-	appleIssuer    = "https://appleid.apple.com"
-	googleCertsURL = "https://www.googleapis.com/oauth2/v3/certs"
+	appleKeysURL  = "https://appleid.apple.com/auth/keys"
+	appleIssuer   = "https://appleid.apple.com"
+	googleKeysURL = "https://www.googleapis.com/oauth2/v3/certs"
 )
 
 var (
@@ -57,7 +56,7 @@ type keyCache struct {
 	keys    map[string]*rsa.PublicKey
 	expires time.Time
 	ttl     time.Duration
-	fetch   func(context.Context) (map[string]*rsa.PublicKey, error)
+	url     string
 }
 
 func (c *keyCache) keyFor(ctx context.Context, kid string) (*rsa.PublicKey, error) {
@@ -81,7 +80,7 @@ func (c *keyCache) keyFor(ctx context.Context, kid string) (*rsa.PublicKey, erro
 }
 
 func (c *keyCache) refreshLocked(ctx context.Context) error {
-	keys, err := c.fetch(ctx)
+	keys, err := fetchRSAKeys(ctx, c.url)
 	if err != nil {
 		return err
 	}
@@ -91,8 +90,8 @@ func (c *keyCache) refreshLocked(ctx context.Context) error {
 }
 
 var (
-	appleKeyCache  = &keyCache{ttl: time.Hour, fetch: fetchAppleKeys}
-	googleKeyCache = &keyCache{ttl: time.Hour, fetch: fetchGoogleCerts}
+	appleKeyCache  = &keyCache{ttl: time.Hour, url: appleKeysURL}
+	googleKeyCache = &keyCache{ttl: time.Hour, url: googleKeysURL}
 )
 
 // VerifyAppleIDToken verifies a Sign in with Apple identity token: RS256
@@ -125,7 +124,7 @@ func VerifyAppleIDToken(ctx context.Context, now time.Time, token, audience, non
 }
 
 // VerifyGoogleIDToken verifies a Google ID token: RS256 signature against
-// Google's certs, issuer, audience membership, and expiry.
+// Google's keys, issuer, audience membership, and expiry.
 func VerifyGoogleIDToken(ctx context.Context, now time.Time, token string, audiences []string) (SocialIdentity, error) {
 	claims, err := verifyRS256(ctx, googleKeyCache, token, now)
 	if err != nil {
@@ -264,18 +263,31 @@ func splitToken(token string) (tokenHeader, tokenClaims, string, []byte, error) 
 	return header, claims, parts[0] + "." + parts[1], signature, nil
 }
 
-func fetchAppleKeys(ctx context.Context) (map[string]*rsa.PublicKey, error) {
-	var document struct {
-		Keys []struct {
-			KeyID     string `json:"kid"`
-			KeyType   string `json:"kty"`
-			Algorithm string `json:"alg"`
-			N         string `json:"n"`
-			E         string `json:"e"`
-		} `json:"keys"`
+type jwksDocument struct {
+	Keys []struct {
+		KeyID   string `json:"kid"`
+		KeyType string `json:"kty"`
+		N       string `json:"n"`
+		E       string `json:"e"`
+	} `json:"keys"`
+}
+
+func fetchRSAKeys(ctx context.Context, url string) (map[string]*rsa.PublicKey, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create signing-key request for %s: %w: %w", url, ErrSocialUnavailable, err)
 	}
-	if err := fetchJSON(ctx, appleKeysURL, &document); err != nil {
-		return nil, err
+	response, err := socialHTTPClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("fetch signing keys from %s: %w: %w", url, ErrSocialUnavailable, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch signing keys from %s: HTTP %d: %w", url, response.StatusCode, ErrSocialUnavailable)
+	}
+	var document jwksDocument
+	if err := json.NewDecoder(response.Body).Decode(&document); err != nil {
+		return nil, fmt.Errorf("decode signing keys from %s: %w: %w", url, ErrSocialUnavailable, err)
 	}
 	keys := make(map[string]*rsa.PublicKey, len(document.Keys))
 	for _, entry := range document.Keys {
@@ -283,73 +295,23 @@ func fetchAppleKeys(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 			continue
 		}
 		modulus, err := base64URLToInt(entry.N)
-		if err != nil {
+		if err != nil || modulus.Sign() <= 0 {
 			continue
 		}
 		exponent, err := base64URLToInt(entry.E)
 		if err != nil || !exponent.IsInt64() {
 			continue
 		}
-		keys[entry.KeyID] = &rsa.PublicKey{N: modulus, E: int(exponent.Int64())}
+		e := exponent.Int64()
+		if e < 3 || e > 1<<31-1 || e%2 == 0 {
+			continue
+		}
+		keys[entry.KeyID] = &rsa.PublicKey{N: modulus, E: int(e)}
 	}
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("no usable keys: %w", ErrSocialUnavailable)
+		return nil, fmt.Errorf("fetch signing keys from %s: no usable RSA keys: %w", url, ErrSocialUnavailable)
 	}
 	return keys, nil
-}
-
-func fetchGoogleCerts(ctx context.Context) (map[string]*rsa.PublicKey, error) {
-	var document struct {
-		Keys []struct {
-			KeyID string   `json:"kid"`
-			Chain []string `json:"x5c"`
-		} `json:"keys"`
-	}
-	if err := fetchJSON(ctx, googleCertsURL, &document); err != nil {
-		return nil, err
-	}
-	keys := make(map[string]*rsa.PublicKey, len(document.Keys))
-	for _, entry := range document.Keys {
-		if entry.KeyID == "" || len(entry.Chain) == 0 {
-			continue
-		}
-		der, err := base64.StdEncoding.DecodeString(entry.Chain[0])
-		if err != nil {
-			continue
-		}
-		certificate, err := x509.ParseCertificate(der)
-		if err != nil {
-			continue
-		}
-		key, ok := certificate.PublicKey.(*rsa.PublicKey)
-		if !ok {
-			continue
-		}
-		keys[entry.KeyID] = key
-	}
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("no usable certs: %w", ErrSocialUnavailable)
-	}
-	return keys, nil
-}
-
-func fetchJSON(ctx context.Context, url string, target any) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("key fetch: %w", ErrSocialUnavailable)
-	}
-	response, err := socialHTTPClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("key fetch: %w", ErrSocialUnavailable)
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("key fetch status %d: %w", response.StatusCode, ErrSocialUnavailable)
-	}
-	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
-		return fmt.Errorf("key parse: %w", ErrSocialUnavailable)
-	}
-	return nil
 }
 
 func base64URLToInt(raw string) (*big.Int, error) {

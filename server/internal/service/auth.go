@@ -57,7 +57,7 @@ var (
 	ErrSocialUnverified    = errors.New("this Email is not verified by the provider")
 	ErrSocialConflict      = errors.New("a User with this Email already exists, sign in with your password first")
 	ErrSocialTokenInvalid  = errors.New("invalid social token")
-	ErrSocialUnavailable   = errors.New("could not verify social token")
+	ErrSocialUnavailable   = auth.ErrSocialUnavailable
 	ErrUsernameAlreadySet  = errors.New("username is already set")
 	ErrPasswordAlreadySet  = errors.New("password is already set, use reset instead")
 )
@@ -526,10 +526,8 @@ func (s *AuthService) verifySocialToken(ctx context.Context, provider, idToken, 
 		return auth.SocialIdentity{}, ValidationError{Fields: map[string]string{"provider": "provider must be apple or google"}}
 	}
 	if err != nil {
-		// Keep provider verification failures behind service sentinels so
-		// the transport never depends on the crypto layer.
 		if errors.Is(err, auth.ErrSocialUnavailable) {
-			return auth.SocialIdentity{}, ErrSocialUnavailable
+			return auth.SocialIdentity{}, err
 		}
 		return auth.SocialIdentity{}, ErrSocialTokenInvalid
 	}
