@@ -1,19 +1,13 @@
 import { create } from "zustand";
 
 import { ApiError, apiFetch, configureAuth, singleFlightRefresh } from "@/lib/api";
+import { chooseAndUploadPicture } from "@/lib/profile-picture";
+import { parseSessionUser, type SessionUser } from "@/lib/session-user";
 import {
   clearSession,
   loadSession,
   saveSession,
 } from "@/lib/session-storage";
-
-export type SessionUser = {
-  id: string;
-  username: string;
-  email: string;
-  verified: boolean;
-  hasPassword: boolean;
-};
 
 type AuthTokens = {
   access_token: string;
@@ -22,23 +16,18 @@ type AuthTokens = {
 };
 
 type AuthResponse = {
-  user: SessionUser;
+  user: unknown;
 } & AuthTokens;
 
 type SignUpResponse = {
-  user: SessionUser;
+  user: unknown;
   verification_sent: boolean;
   dev_verification_code?: string;
 };
 
-type SocialResponse = {
-  user: SessionUser;
-  pending: boolean;
-  pending_token?: string;
-  access_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
-};
+type SocialResponse =
+  | AuthResponse
+  | { user: unknown; pending: true; pending_token: string };
 
 type SessionStatus =
   | "restoring"
@@ -46,6 +35,13 @@ type SessionStatus =
   | "pending-verification"
   | "needs-username"
   | "authenticated";
+
+type PictureState =
+  | { kind: "idle" }
+  | { kind: "changing" }
+  | { kind: "failed"; message: string };
+
+let pictureRevision = 0;
 
 type SessionState = {
   status: SessionStatus;
@@ -56,6 +52,7 @@ type SessionState = {
   pendingToken: string | null;
   error: string | null;
   isBusy: boolean;
+  pictureState: PictureState;
   restore: () => Promise<void>;
   signUp: (username: string, email: string, password: string) => Promise<void>;
   verify: (code: string) => Promise<void>;
@@ -75,6 +72,7 @@ type SessionState = {
     newPassword: string,
   ) => Promise<void>;
   changeUsername: (username: string) => Promise<void>;
+  changeProfilePicture: () => Promise<"saved" | "cancelled">;
   addPassword: (newPassword: string) => Promise<void>;
   refreshTokens: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -157,6 +155,23 @@ function accessExpiringSoon(token: string, marginMs = 60_000): boolean {
 }
 
 export const useSessionStore = create<SessionState>((set, get) => {
+  let activePicture: AbortController | null = null;
+
+  const cancelPicture = () => {
+    activePicture?.abort();
+    activePicture = null;
+    set({ pictureState: { kind: "idle" } });
+  };
+
+  const mapUser = (value: unknown) => {
+    try {
+      return parseSessionUser(value);
+    } catch (error) {
+      set({ error: messageOf(error), isBusy: false });
+      throw error;
+    }
+  };
+
   const persist = () => {
     const { user, accessToken, refreshToken, pendingEmail, pendingToken } =
       get();
@@ -170,9 +185,11 @@ export const useSessionStore = create<SessionState>((set, get) => {
   };
 
   const applySession = (data: AuthResponse) => {
+    const user = mapUser(data.user);
+    cancelPicture();
     set({
       status: "authenticated",
-      user: data.user,
+      user,
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       pendingEmail: null,
@@ -191,6 +208,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     pendingToken: null,
     error: null,
     isBusy: false,
+    pictureState: { kind: "idle" },
 
     restore: async () => {
       // Storage failure must never brick the app on a permanent blank
@@ -202,11 +220,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       } catch {
         saved = null;
       }
-      // Sessions persisted before hasPassword existed normalize to true;
-      // the server confirms the real value on the next /auth/me call.
-      const savedUser = saved?.user
-        ? { ...saved.user, hasPassword: saved.user.hasPassword ?? true }
-        : null;
+      const savedUser = saved?.user ?? null;
       if (!saved?.refreshToken || !saved.accessToken) {
         // A pending Username grant survives restarts while it is unexpired.
         if (
@@ -235,9 +249,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
         if (accessExpiringSoon(saved.accessToken)) {
           throw new Error("expired");
         }
-        const user = await apiFetch<SessionUser>("/auth/me", {
+        const data = await apiFetch<unknown>("/auth/me", {
           accessToken: saved.accessToken,
         });
+        const user = mapUser(data);
         set({
           status: "authenticated",
           user,
@@ -274,10 +289,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
         email,
         password,
       });
+      const user = mapUser(data.user);
+      cancelPicture();
       set({
         status: "pending-verification",
-        user: data.user,
-        pendingEmail: data.user.email,
+        user,
+        pendingEmail: user.email,
         pendingToken: null,
         isBusy: false,
       });
@@ -340,10 +357,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
         set({ error: message, isBusy: false });
         throw error;
       }
-      if (data.pending && data.pending_token) {
+      if ("pending" in data) {
+        const user = mapUser(data.user);
+        cancelPicture();
         set({
           status: "needs-username",
-          user: data.user,
+          user,
           accessToken: null,
           refreshToken: null,
           pendingEmail: null,
@@ -353,7 +372,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         await persist();
         return;
       }
-      await applySession(data as AuthResponse);
+      await applySession(data);
     },
 
     setUsername: async (username) => {
@@ -409,11 +428,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
       }
       set({ isBusy: true, error: null });
       try {
-        const user = await apiFetch<SessionUser>("/auth/username/change", {
+        const data = await apiFetch<unknown>("/auth/username/change", {
           method: "POST",
           body: { username },
           accessToken,
         });
+        const user = mapUser(data);
         set({ user, isBusy: false });
         await persist();
         // Renew so the access claims carry the new Username immediately.
@@ -423,6 +443,57 @@ export const useSessionStore = create<SessionState>((set, get) => {
       } catch (error) {
         set({ error: messageOf(error), isBusy: false });
         throw error;
+      }
+    },
+
+    changeProfilePicture: async () => {
+      const { status, user, accessToken, isBusy, pictureState } = get();
+      if (isBusy || pictureState.kind === "changing") return "cancelled";
+      if (status !== "authenticated" || !user || !accessToken) {
+        const error = new Error("Sign in before changing your profile picture.");
+        set({ pictureState: { kind: "failed", message: error.message } });
+        throw error;
+      }
+      const controller = new AbortController();
+      activePicture = controller;
+      const ownsPicture = () =>
+        activePicture === controller &&
+        !controller.signal.aborted &&
+        get().status === "authenticated" &&
+        get().user?.id === user.id;
+      set({ pictureState: { kind: "changing" }, error: null });
+      try {
+        const result = await chooseAndUploadPicture({ signal: controller.signal });
+        if (!ownsPicture() || result.kind === "cancelled") return "cancelled";
+        if (result.user.id !== user.id) {
+          throw new Error("Your session changed. Sign in again before changing your picture.");
+        }
+        pictureRevision += 1;
+        set({ user: result.user });
+        try {
+          await persist();
+        } catch {
+          if (ownsPicture()) {
+            set({
+              pictureState: {
+                kind: "failed",
+                message: "Your picture was saved. This device could not store the update locally. Sign in again if it is missing after a restart.",
+              },
+            });
+          }
+        }
+        return ownsPicture() ? "saved" : "cancelled";
+      } catch (error) {
+        if (!ownsPicture()) return "cancelled";
+        set({ pictureState: { kind: "failed", message: messageOf(error) } });
+        throw error;
+      } finally {
+        if (activePicture === controller) {
+          activePicture = null;
+          if (get().pictureState.kind === "changing") {
+            set({ pictureState: { kind: "idle" } });
+          }
+        }
       }
     },
 
@@ -439,9 +510,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
           body: { new_password: newPassword },
           accessToken,
         });
-        const user = await apiFetch<SessionUser>("/auth/me", {
+        const data = await apiFetch<unknown>("/auth/me", {
           accessToken,
         });
+        const user = mapUser(data);
         set({ user, isBusy: false });
         await persist();
       } catch (error) {
@@ -464,6 +536,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     signOut: async () => {
+      cancelPicture();
       const { refreshToken } = get();
       if (refreshToken) {
         try {
@@ -479,6 +552,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     signOutEverywhere: async () => {
+      cancelPicture();
       try {
         // Renew first so an expired access token does not silently void the
         // revocation while the local session is dropped.
@@ -503,7 +577,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     },
 
     dropToGuest: async () => {
-      await clearSession();
+      cancelPicture();
       set({
         status: "guest",
         user: null,
@@ -514,6 +588,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         error: null,
         isBusy: false,
       });
+      await clearSession();
     },
 
     clearError: () => set({ error: null }),
@@ -525,14 +600,24 @@ configureAuth({
   performRefresh: async () => {
     const { refreshToken } = useSessionStore.getState();
     if (!refreshToken) return null;
+    const pictureAtStart = pictureRevision;
     try {
       const data = await apiFetch<AuthResponse>("/auth/refresh", {
         method: "POST",
         body: { refresh_token: refreshToken },
       });
+      const current = useSessionStore.getState();
+      if (current.refreshToken !== refreshToken) {
+        throw new Error("Session changed during refresh.");
+      }
+      const mappedUser = parseSessionUser(data.user);
+      const user =
+        pictureAtStart !== pictureRevision && current.user?.id === mappedUser.id
+          ? { ...mappedUser, profilePictureUrl: current.user.profilePictureUrl }
+          : mappedUser;
       useSessionStore.setState({
         status: "authenticated",
-        user: data.user,
+        user,
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         pendingEmail: null,
@@ -548,6 +633,7 @@ configureAuth({
       });
       return data.access_token;
     } catch (error) {
+      if (useSessionStore.getState().refreshToken !== refreshToken) throw error;
       // Definitive rejection ends the session; transient failure keeps it.
       if (
         error instanceof ApiError &&

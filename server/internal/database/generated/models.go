@@ -8,6 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Contact struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	ContactID pgtype.UUID        `json:"contact_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type LinkedIdentity struct {
 	ID          pgtype.UUID        `json:"id"`
 	UserID      pgtype.UUID        `json:"user_id"`
@@ -29,13 +35,14 @@ type Session struct {
 }
 
 type User struct {
-	ID              pgtype.UUID        `json:"id"`
-	Username        pgtype.Text        `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	Username          pgtype.Text        `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ProfilePictureUrl pgtype.Text        `json:"profile_picture_url"`
 }
 
 type VerificationChallenge struct {

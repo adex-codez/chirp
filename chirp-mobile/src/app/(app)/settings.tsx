@@ -1,4 +1,5 @@
 import { Button } from "@/components/button";
+import { Avatar } from "heroui-native/avatar";
 import { ControlField } from "heroui-native/control-field";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
@@ -19,6 +20,8 @@ export default function Settings() {
   const user = useSessionStore((state) => state.user);
   const error = useSessionStore((state) => state.error);
   const isBusy = useSessionStore((state) => state.isBusy);
+  const pictureState = useSessionStore((state) => state.pictureState);
+  const changeProfilePicture = useSessionStore((state) => state.changeProfilePicture);
   const changeUsername = useSessionStore((state) => state.changeUsername);
   const addPassword = useSessionStore((state) => state.addPassword);
   const signOutEverywhere = useSessionStore((state) => state.signOutEverywhere);
@@ -29,6 +32,18 @@ export default function Settings() {
   const [username, setUsernameDraft] = useState(user?.username ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+
+  const accountBusy = isBusy || pictureState.kind === "changing";
+
+  const submitPicture = async () => {
+    if (accountBusy) return;
+    setSaved(null);
+    try {
+      if (await changeProfilePicture() === "saved") {
+        setSaved("Profile picture updated.");
+      }
+    } catch {}
+  };
 
   const submitUsername = async () => {
     setSaved(null);
@@ -58,16 +73,34 @@ export default function Settings() {
       </Masthead>
 
       <Section label="Account">
+        <View className="flex-row items-center gap-4">
+          <Avatar size="lg" color="default" alt="Your profile picture" animation="disable-all">
+            {user?.profilePictureUrl ? (
+              <Avatar.Image key={user.profilePictureUrl} source={{ uri: user.profilePictureUrl }} />
+            ) : null}
+            <Avatar.Fallback>{user?.username.slice(0, 1).toUpperCase() || "C"}</Avatar.Fallback>
+          </Avatar>
+          <View className="flex-1">
+            <Typography>Profile picture</Typography>
+            <Typography.Paragraph type="body-sm" color="muted">
+              Choose a photo from your library.
+            </Typography.Paragraph>
+          </View>
+        </View>
+        <Button variant="secondary" onPress={submitPicture} isDisabled={accountBusy}>
+          {pictureState.kind === "changing" ? "Updating picture…" : "Change profile picture"}
+        </Button>
+        {pictureState.kind === "failed" ? <Notice tone="danger">{pictureState.message}</Notice> : null}
         <FieldInput
           label="Username"
           value={username}
           onChangeText={setUsernameDraft}
           autoCapitalize="none"
-          editable={!isBusy}
+          editable={!accountBusy}
           placeholder="e.g. river_song"
           hint="3–20 characters: letters, numbers, underscore, dot."
         />
-        <Button onPress={submitUsername} isDisabled={isBusy}>
+        <Button onPress={submitUsername} isDisabled={accountBusy}>
           {isBusy ? "Saving…" : "Save username"}
         </Button>
       </Section>
@@ -83,10 +116,10 @@ export default function Settings() {
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry
-            editable={!isBusy}
+            editable={!accountBusy}
             hint="8-15 chars, upper, lower, number & symbol"
           />
-          <Button variant="secondary" onPress={submitPassword} isDisabled={isBusy}>
+          <Button variant="secondary" onPress={submitPassword} isDisabled={accountBusy}>
             {isBusy ? "Saving…" : "Add password"}
           </Button>
         </Section>
@@ -98,7 +131,7 @@ export default function Settings() {
             ? `Signed in as ${user.email} on this device. Signing out everywhere ends every other session.`
             : "Signing out everywhere ends every other session."}
         </Typography.Paragraph>
-        <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={isBusy}>
+        <Button variant="outline" onPress={() => void signOutEverywhere()} isDisabled={accountBusy}>
           Sign out everywhere
         </Button>
       </Section>
@@ -116,7 +149,7 @@ export default function Settings() {
       </Section>
 
       <Section label="Session">
-        <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={isBusy}>
+        <Button variant="danger-soft" onPress={() => void signOut()} isDisabled={accountBusy}>
           Sign out
         </Button>
       </Section>

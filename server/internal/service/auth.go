@@ -11,6 +11,7 @@ import (
 
 	"backend/internal/auth"
 	"backend/internal/mail"
+	"backend/internal/profilepicture"
 	"backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
@@ -92,11 +93,12 @@ var (
 // PublicUser is the outward view of a User: handle, contact, verification
 // state, and whether Password sign-in is available.
 type PublicUser struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	Email       string `json:"email"`
-	Verified    bool   `json:"verified"`
-	HasPassword bool   `json:"has_password"`
+	ID                string `json:"id"`
+	Username          string `json:"username"`
+	Email             string `json:"email"`
+	Verified          bool   `json:"verified"`
+	HasPassword       bool   `json:"has_password"`
+	ProfilePictureURL string `json:"profile_picture_url"`
 }
 
 // AuthResult is a signed-in session: the User plus its first token pair.
@@ -129,6 +131,7 @@ type AuthService struct {
 	appleAudience   string
 	googleAudiences []string
 	mailer          *mail.Client
+	pictures        *profilepicture.Client
 	now             func() time.Time
 }
 
@@ -136,7 +139,7 @@ type AuthService struct {
 // point owns configuration. mailer may be nil (or disabled without an API
 // key): sends are skipped and codes stay in responses. now is nil in
 // production (uses time.Now) and overridden in tests.
-func NewAuthService(users repository.UserRepository, challenges repository.ChallengeRepository, sessions repository.SessionRepository, identities repository.IdentityRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client) *AuthService {
+func NewAuthService(users repository.UserRepository, challenges repository.ChallengeRepository, sessions repository.SessionRepository, identities repository.IdentityRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client, pictures *profilepicture.Client) *AuthService {
 	return &AuthService{
 		users:           users,
 		challenges:      challenges,
@@ -147,6 +150,7 @@ func NewAuthService(users repository.UserRepository, challenges repository.Chall
 		appleAudience:   appleAudience,
 		googleAudiences: googleAudiences,
 		mailer:          mailer,
+		pictures:        pictures,
 		now:             nil,
 	}
 }
@@ -763,11 +767,12 @@ func (s *AuthService) issueSession(ctx context.Context, user repository.AuthUser
 
 func publicUser(user repository.AuthUser) PublicUser {
 	return PublicUser{
-		ID:          user.ID,
-		Username:    user.Username,
-		Email:       user.Email,
-		Verified:    user.EmailVerified,
-		HasPassword: user.HasPassword,
+		ID:                user.ID,
+		Username:          user.Username,
+		Email:             user.Email,
+		Verified:          user.EmailVerified,
+		HasPassword:       user.HasPassword,
+		ProfilePictureURL: user.ProfilePictureURL,
 	}
 }
 

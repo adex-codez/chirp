@@ -2,10 +2,13 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/joho/godotenv"
 )
@@ -15,6 +18,15 @@ type Config struct {
 	Database DatabaseConfig
 	Auth     AuthConfig
 	Mail     MailConfig
+	R2       *R2Config
+}
+
+type R2Config struct {
+	AccountID       string
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+	PublicBaseURL   url.URL
 }
 
 type ServerConfig struct {
@@ -93,6 +105,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	r2Cfg, err := loadR2Config()
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		Server: ServerConfig{
@@ -105,6 +121,7 @@ func Load() (Config, error) {
 		Database: DatabaseConfig{URL: databaseURL},
 		Auth:     authCfg,
 		Mail:     loadMailConfig(),
+		R2:       r2Cfg,
 	}, nil
 }
 
@@ -148,5 +165,52 @@ func loadAuthConfig(mode string) (AuthConfig, error) {
 		DevExposeCodes:  mode != "release",
 		AppleAudience:   os.Getenv("APPLE_AUDIENCE"),
 		GoogleAudiences: splitList(os.Getenv("GOOGLE_AUDIENCES")),
+	}, nil
+}
+
+var (
+	r2AccountPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
+	r2BucketPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`)
+)
+
+func loadR2Config() (*R2Config, error) {
+	names := []string{"R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_PUBLIC_BASE_URL"}
+	values := make([]string, len(names))
+	configured := false
+	for i, name := range names {
+		values[i] = strings.TrimSpace(os.Getenv(name))
+		configured = configured || values[i] != ""
+	}
+	if !configured {
+		return nil, nil
+	}
+	for i, value := range values {
+		if value == "" {
+			return nil, fmt.Errorf("%s is required when R2 is configured", names[i])
+		}
+	}
+	if !r2AccountPattern.MatchString(values[0]) {
+		return nil, fmt.Errorf("R2_ACCOUNT_ID must contain 32 hexadecimal characters")
+	}
+	if !r2BucketPattern.MatchString(values[1]) {
+		return nil, fmt.Errorf("R2_BUCKET must contain 3-63 lowercase letters, digits, or hyphens, starting and ending with a letter or digit")
+	}
+	for _, name := range names[2:4] {
+		if strings.ContainsFunc(os.Getenv(name), unicode.IsControl) {
+			return nil, fmt.Errorf("%s must not contain control characters", name)
+		}
+	}
+	publicURL, err := url.Parse(values[4])
+	if err != nil || publicURL.Scheme != "https" || publicURL.Hostname() == "" || publicURL.User != nil || publicURL.Opaque != "" || publicURL.Path != "" && publicURL.Path != "/" || publicURL.RawPath != "" || publicURL.RawQuery != "" || publicURL.ForceQuery || publicURL.Fragment != "" || strings.ContainsAny(values[4], "\\%?#") {
+		return nil, fmt.Errorf("R2_PUBLIC_BASE_URL must be an HTTPS origin without credentials, a path prefix, a query, or a fragment")
+	}
+	publicURL.Host = strings.ToLower(publicURL.Host)
+	publicURL.Path = ""
+	return &R2Config{
+		AccountID:       strings.ToLower(values[0]),
+		Bucket:          values[1],
+		AccessKeyID:     values[2],
+		SecretAccessKey: values[3],
+		PublicBaseURL:   *publicURL,
 	}, nil
 }

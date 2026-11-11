@@ -154,6 +154,12 @@ go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
 
 The `Makefile` provides equivalent commands where GNU Make is available: `make run`, `make migrate-up`, `make migrate-down`, and `make sqlc`.
 
+## Profile pictures
+
+Settings uploads User pictures through the API to R2. See
+[Enable profile picture uploads](../docs/profile-pictures.md) for server-only
+configuration, public-storage requirements, image limits, and rollout checks.
+
 ## API error codes
 
 `internal/response/codes.go` is the only list of machine-readable error codes. `internal/response/failures.go` holds the HTTP status and default message for each code, and `From` maps service errors to codes.

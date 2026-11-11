@@ -72,6 +72,7 @@ var sentinelCodes = []struct {
 	{service.ErrSocialUnavailable, CodeSocialUnavailable},
 	{service.ErrUsernameAlreadySet, CodeUsernameAlreadySet},
 	{service.ErrPasswordAlreadySet, CodePasswordAlreadySet},
+	{service.ErrProfilePictureUnavailable, CodeServiceUnavailable},
 }
 
 // From maps a domain error to the failure the client sees.

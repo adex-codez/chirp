@@ -49,7 +49,7 @@ func main() {
 	defer db.Close()
 	slog.Info("connected to database")
 
-	routes, err := router.New(db, cfg.Server, cfg.Auth, cfg.Mail)
+	routes, err := router.New(db, cfg.Server, cfg.Auth, cfg.Mail, cfg.R2)
 	if err != nil {
 		slog.Error("failed to create router", "error", err)
 		os.Exit(1)

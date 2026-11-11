@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"backend/internal/database/generated"
@@ -17,12 +18,18 @@ var ErrAuthNotFound = errors.New("not found")
 // AuthUser is the persistence view of a User: unique Username, unique Email,
 // nullable password hash (social-only Users have none), and verification state.
 type AuthUser struct {
-	ID            string
-	Username      string
-	Email         string
-	PasswordHash  string
-	HasPassword   bool
-	EmailVerified bool
+	ID                string
+	Username          string
+	Email             string
+	PasswordHash      string
+	HasPassword       bool
+	EmailVerified     bool
+	ProfilePictureURL string
+}
+
+type PictureReplacement struct {
+	User        AuthUser
+	PreviousURL string
 }
 
 // VerificationChallenge is a single-use code grant for a purpose such as
@@ -67,6 +74,7 @@ type UserRepository interface {
 	MarkUserVerified(ctx context.Context, id string) error
 	UpdateUsername(ctx context.Context, id, username string) (AuthUser, error)
 	UpdatePassword(ctx context.Context, id, passwordHash string) error
+	ReplaceProfilePicture(ctx context.Context, id, newURL string) (PictureReplacement, error)
 }
 
 // ChallengeRepository owns single-use verification-code grants.
@@ -105,12 +113,13 @@ type AuthRepository interface {
 
 // PostgresAuthRepository is the PostgreSQL adapter for AuthRepository.
 type PostgresAuthRepository struct {
+	pool    *pgxpool.Pool
 	queries *database.Queries
 }
 
 // NewAuthRepository wires the generated queries to a live pool.
 func NewAuthRepository(db *pgxpool.Pool) *PostgresAuthRepository {
-	return &PostgresAuthRepository{queries: database.New(db)}
+	return &PostgresAuthRepository{pool: db, queries: database.New(db)}
 }
 
 func (r *PostgresAuthRepository) CreateUser(ctx context.Context, username, email, passwordHash string) (AuthUser, error) {
@@ -126,14 +135,7 @@ func (r *PostgresAuthRepository) CreateUser(ctx context.Context, username, email
 	if err != nil {
 		return AuthUser{}, err
 	}
-	return AuthUser{
-		ID:            row.ID,
-		Username:      row.Username,
-		Email:         row.Email,
-		PasswordHash:  row.PasswordHash.String,
-		HasPassword:   row.PasswordHash.Valid,
-		EmailVerified: row.EmailVerifiedAt.Valid,
-	}, nil
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl), nil
 }
 
 func (r *PostgresAuthRepository) GetUserByEmail(ctx context.Context, email string) (AuthUser, error) {
@@ -141,7 +143,7 @@ func (r *PostgresAuthRepository) GetUserByEmail(ctx context.Context, email strin
 	if err != nil {
 		return AuthUser{}, mapNoRows(err)
 	}
-	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl), nil
 }
 
 func (r *PostgresAuthRepository) GetUserByUsername(ctx context.Context, username string) (AuthUser, error) {
@@ -149,7 +151,7 @@ func (r *PostgresAuthRepository) GetUserByUsername(ctx context.Context, username
 	if err != nil {
 		return AuthUser{}, mapNoRows(err)
 	}
-	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl), nil
 }
 
 func (r *PostgresAuthRepository) GetUserByID(ctx context.Context, id string) (AuthUser, error) {
@@ -161,7 +163,7 @@ func (r *PostgresAuthRepository) GetUserByID(ctx context.Context, id string) (Au
 	if err != nil {
 		return AuthUser{}, mapNoRows(err)
 	}
-	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl), nil
 }
 
 func (r *PostgresAuthRepository) MarkUserVerified(ctx context.Context, id string) error {
@@ -279,7 +281,7 @@ func (r *PostgresAuthRepository) GetSessionByRefreshHash(ctx context.Context, re
 		UserID:     row.UserID,
 		ExpiresAt:  row.ExpiresAt.Time,
 		Revoked:    row.RevokedAt.Valid,
-		ReplacedBy: row.ReplacedBy.String,
+		ReplacedBy: row.ReplacedBy,
 	}, nil
 }
 
@@ -370,7 +372,7 @@ func (r *PostgresAuthRepository) UpdateUsername(ctx context.Context, id, usernam
 	if err != nil {
 		return AuthUser{}, mapNoRows(err)
 	}
-	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt), nil
+	return userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl), nil
 }
 
 func (r *PostgresAuthRepository) UpdatePassword(ctx context.Context, id, passwordHash string) error {
@@ -384,14 +386,51 @@ func (r *PostgresAuthRepository) UpdatePassword(ctx context.Context, id, passwor
 	})
 }
 
-func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz) AuthUser {
+func (r *PostgresAuthRepository) ReplaceProfilePicture(ctx context.Context, id, newURL string) (PictureReplacement, error) {
+	key, err := parseUUID(id)
+	if err != nil {
+		return PictureReplacement{}, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return PictureReplacement{}, err
+	}
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			slog.WarnContext(ctx, "picture replacement rollback failed", "user_id", id, "error", err)
+		}
+	}()
+
+	queries := r.queries.WithTx(tx)
+	previous, err := queries.LockProfilePicture(ctx, key)
+	if err != nil {
+		return PictureReplacement{}, mapNoRows(err)
+	}
+	row, err := queries.UpdateProfilePicture(ctx, database.UpdateProfilePictureParams{
+		Column1:           key,
+		ProfilePictureUrl: pgtype.Text{String: newURL, Valid: true},
+	})
+	if err != nil {
+		return PictureReplacement{}, mapNoRows(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return PictureReplacement{}, err
+	}
+	return PictureReplacement{
+		User:        userRow(row.ID, row.Username, row.Email, row.PasswordHash, row.EmailVerifiedAt, row.ProfilePictureUrl),
+		PreviousURL: previous,
+	}, nil
+}
+
+func userRow(id, username, email string, hash pgtype.Text, verifiedAt pgtype.Timestamptz, pictureURL string) AuthUser {
 	return AuthUser{
-		ID:            id,
-		Username:      username,
-		Email:         email,
-		PasswordHash:  hash.String,
-		HasPassword:   hash.Valid,
-		EmailVerified: verifiedAt.Valid,
+		ID:                id,
+		Username:          username,
+		Email:             email,
+		PasswordHash:      hash.String,
+		HasPassword:       hash.Valid,
+		EmailVerified:     verifiedAt.Valid,
+		ProfilePictureURL: pictureURL,
 	}
 }
 

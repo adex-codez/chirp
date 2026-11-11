@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"io"
 	"strings"
 
 	"backend/internal/response"
@@ -24,6 +25,7 @@ type authService interface {
 	ResetPassword(ctx context.Context, email, code, password string) error
 	AddPassword(ctx context.Context, accessToken, password string) error
 	ChangeUsername(ctx context.Context, accessToken, username string) (service.PublicUser, error)
+	UploadProfilePicture(ctx context.Context, accessToken string, body io.Reader) (service.PublicUser, error)
 }
 
 // AuthHandler is the HTTP transport for Password sign-in joins, verification,
@@ -343,6 +345,20 @@ func (h *AuthHandler) ChangeUsername(c *gin.Context) {
 		return
 	}
 	user, err := h.service.ChangeUsername(c.Request.Context(), token, req.Username)
+	if err != nil {
+		response.Fail(c, err)
+		return
+	}
+	response.Success(c, user)
+}
+
+func (h *AuthHandler) UploadProfilePicture(c *gin.Context) {
+	token, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		response.FailCode(c, response.CodeInvalidSession)
+		return
+	}
+	user, err := h.service.UploadProfilePicture(c.Request.Context(), token, c.Request.Body)
 	if err != nil {
 		response.Fail(c, err)
 		return

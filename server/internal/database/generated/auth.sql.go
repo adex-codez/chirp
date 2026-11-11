@@ -124,7 +124,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (C
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (username, email, password_hash)
 VALUES (NULLIF($1::text, ''), $2, $3)
-RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -134,13 +134,14 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID              string             `json:"id"`
-	Username        string             `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -152,6 +153,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.Email,
 		&i.PasswordHash,
 		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -277,7 +279,7 @@ func (q *Queries) GetLatestVerificationChallenge(ctx context.Context, arg GetLat
 }
 
 const getSessionByRefreshHash = `-- name: GetSessionByRefreshHash :one
-SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, replaced_by::text AS replaced_by, created_at
+SELECT id::text AS id, user_id::text AS user_id, refresh_hash, expires_at, revoked_at, COALESCE(replaced_by::text, '')::text AS replaced_by, created_at
 FROM sessions
 WHERE refresh_hash = $1
 LIMIT 1
@@ -289,7 +291,7 @@ type GetSessionByRefreshHashRow struct {
 	RefreshHash string             `json:"refresh_hash"`
 	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
-	ReplacedBy  pgtype.Text        `json:"replaced_by"`
+	ReplacedBy  string             `json:"replaced_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -309,20 +311,21 @@ func (q *Queries) GetSessionByRefreshHash(ctx context.Context, refreshHash strin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
 FROM users
 WHERE lower(email) = lower($1)
 LIMIT 1
 `
 
 type GetUserByEmailRow struct {
-	ID              string             `json:"id"`
-	Username        string             `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error) {
@@ -334,6 +337,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEm
 		&i.Email,
 		&i.PasswordHash,
 		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -341,19 +345,20 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEm
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
 FROM users
 WHERE id = $1::uuid
 `
 
 type GetUserByIDRow struct {
-	ID              string             `json:"id"`
-	Username        string             `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, dollar_1 pgtype.UUID) (GetUserByIDRow, error) {
@@ -365,6 +370,7 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 pgtype.UUID) (GetUse
 		&i.Email,
 		&i.PasswordHash,
 		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -372,20 +378,21 @@ func (q *Queries) GetUserByID(ctx context.Context, dollar_1 pgtype.UUID) (GetUse
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+SELECT id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
 FROM users
 WHERE lower(username) = lower($1)
 LIMIT 1
 `
 
 type GetUserByUsernameRow struct {
-	ID              string             `json:"id"`
-	Username        string             `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (GetUserByUsernameRow, error) {
@@ -397,6 +404,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (GetUserB
 		&i.Email,
 		&i.PasswordHash,
 		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -412,6 +420,20 @@ WHERE id = $1::uuid
 func (q *Queries) IncrementChallengeAttempts(ctx context.Context, dollar_1 pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, incrementChallengeAttempts, dollar_1)
 	return err
+}
+
+const lockProfilePicture = `-- name: LockProfilePicture :one
+SELECT COALESCE(profile_picture_url, '') AS profile_picture_url
+FROM users
+WHERE id = $1::uuid
+FOR UPDATE
+`
+
+func (q *Queries) LockProfilePicture(ctx context.Context, dollar_1 pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockProfilePicture, dollar_1)
+	var profile_picture_url string
+	err := row.Scan(&profile_picture_url)
+	return profile_picture_url, err
 }
 
 const markUserVerified = `-- name: MarkUserVerified :exec
@@ -479,11 +501,50 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 	return err
 }
 
+const updateProfilePicture = `-- name: UpdateProfilePicture :one
+UPDATE users
+SET profile_picture_url = $2, updated_at = now()
+WHERE id = $1::uuid
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
+`
+
+type UpdateProfilePictureParams struct {
+	Column1           pgtype.UUID `json:"column_1"`
+	ProfilePictureUrl pgtype.Text `json:"profile_picture_url"`
+}
+
+type UpdateProfilePictureRow struct {
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateProfilePicture(ctx context.Context, arg UpdateProfilePictureParams) (UpdateProfilePictureRow, error) {
+	row := q.db.QueryRow(ctx, updateProfilePicture, arg.Column1, arg.ProfilePictureUrl)
+	var i UpdateProfilePictureRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateUsername = `-- name: UpdateUsername :one
 UPDATE users
 SET username = $2, updated_at = now()
 WHERE id = $1::uuid
-RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, created_at, updated_at
+RETURNING id::text AS id, COALESCE(username, '') AS username, email, password_hash, email_verified_at, COALESCE(profile_picture_url, '') AS profile_picture_url, created_at, updated_at
 `
 
 type UpdateUsernameParams struct {
@@ -492,13 +553,14 @@ type UpdateUsernameParams struct {
 }
 
 type UpdateUsernameRow struct {
-	ID              string             `json:"id"`
-	Username        string             `json:"username"`
-	Email           string             `json:"email"`
-	PasswordHash    pgtype.Text        `json:"password_hash"`
-	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                string             `json:"id"`
+	Username          string             `json:"username"`
+	Email             string             `json:"email"`
+	PasswordHash      pgtype.Text        `json:"password_hash"`
+	EmailVerifiedAt   pgtype.Timestamptz `json:"email_verified_at"`
+	ProfilePictureUrl string             `json:"profile_picture_url"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (UpdateUsernameRow, error) {
@@ -510,6 +572,7 @@ func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) 
 		&i.Email,
 		&i.PasswordHash,
 		&i.EmailVerifiedAt,
+		&i.ProfilePictureUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
