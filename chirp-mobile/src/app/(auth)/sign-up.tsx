@@ -19,7 +19,13 @@ export default function SignUp() {
   const isBusy = useSessionStore((state) => state.isBusy);
   const signUp = useSessionStore((state) => state.signUp);
 
+  const canSubmit =
+    username.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.trim().length > 0;
+
   const submit = async () => {
+    if (isBusy || !canSubmit) return;
     try {
       await signUp(username.trim(), email.trim(), password);
     } catch {
@@ -64,7 +70,7 @@ export default function SignUp() {
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>
 
-      <Button onPress={submit} isDisabled={isBusy}>
+      <Button onPress={submit} isDisabled={isBusy || !canSubmit}>
         {isBusy ? "Creating…" : "Create account"}
       </Button>
 

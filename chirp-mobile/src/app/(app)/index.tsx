@@ -40,6 +40,13 @@ export default function Chat() {
     },
   });
 
+  const canAddContact = username.trim().length > 0;
+
+  const submitAddContact = () => {
+    if (addContactMutation.isPending || !canAddContact) return;
+    addContactMutation.mutate(username.trim());
+  };
+
   const goBack = () => {
     setScreen(screen.kind === "contacts" ? { kind: "inbox" } : { kind: "contacts" });
   };
@@ -144,8 +151,8 @@ export default function Chat() {
             editable={!addContactMutation.isPending}
           />
           <Button
-            isDisabled={!username.trim() || addContactMutation.isPending}
-            onPress={() => addContactMutation.mutate(username.trim())}
+            isDisabled={addContactMutation.isPending || !canAddContact}
+            onPress={submitAddContact}
           >
             {addContactMutation.isPending ? "Adding contact…" : "Add contact"}
           </Button>

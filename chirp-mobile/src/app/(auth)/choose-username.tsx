@@ -14,7 +14,10 @@ export default function ChooseUsername() {
   const setUsername = useSessionStore((state) => state.setUsername);
   const cancelUsernamePick = useSessionStore((state) => state.cancelUsernamePick);
 
+  const canSubmit = draft.trim().length > 0;
+
   const submit = async () => {
+    if (isBusy || !canSubmit) return;
     try {
       await setUsername(draft.trim());
     } catch {
@@ -48,7 +51,7 @@ export default function ChooseUsername() {
       />
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      <Button onPress={submit} isDisabled={isBusy}>
+      <Button onPress={submit} isDisabled={isBusy || !canSubmit}>
         {isBusy ? "Saving…" : "Save username"}
       </Button>
     </AuthShell>

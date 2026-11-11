@@ -13,7 +13,10 @@ export default function ForgotPassword() {
   const isBusy = useSessionStore((state) => state.isBusy);
   const forgotPassword = useSessionStore((state) => state.forgotPassword);
 
+  const canSubmit = email.trim().length > 0;
+
   const submit = async () => {
+    if (isBusy || !canSubmit) return;
     try {
       await forgotPassword(email.trim());
       router.replace("/reset-password");
@@ -43,7 +46,7 @@ export default function ForgotPassword() {
       />
       {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      <Button onPress={submit} isDisabled={isBusy}>
+      <Button onPress={submit} isDisabled={isBusy || !canSubmit}>
         {isBusy ? "Sending…" : "Send reset code"}
       </Button>
     </AuthShell>

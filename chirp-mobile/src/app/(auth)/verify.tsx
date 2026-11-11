@@ -18,8 +18,10 @@ export default function Verify() {
   const resendCode = useSessionStore((state) => state.resendCode);
   const clearError = useSessionStore((state) => state.clearError);
 
+  const canSubmit = code.trim().length > 0 && code.length === 6;
+
   const submit = async (value: string) => {
-    if (value.length !== 6) return;
+    if (isBusy || value.trim().length === 0 || value.length !== 6) return;
     try {
       await verify(value);
     } catch {
@@ -76,7 +78,7 @@ export default function Verify() {
         {error ? <Notice tone="danger">{error}</Notice> : null}
       </View>
 
-      <Button onPress={() => void submit(code)} isDisabled={isBusy}>
+      <Button onPress={() => void submit(code)} isDisabled={isBusy || !canSubmit}>
         {isBusy ? "Verifying…" : "Verify and continue"}
       </Button>
     </AuthShell>

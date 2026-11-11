@@ -19,7 +19,10 @@ export default function SignIn() {
   const signIn = useSessionStore((state) => state.signIn);
   const status = useSessionStore((state) => state.status);
 
+  const canSubmit = username.trim().length > 0 && password.trim().length > 0;
+
   const submit = async () => {
+    if (isBusy || !canSubmit) return;
     try {
       await signIn(username.trim(), password);
     } catch {
@@ -57,7 +60,7 @@ export default function SignIn() {
         ) : null}
       </View>
 
-      <Button onPress={submit} isDisabled={isBusy}>
+      <Button onPress={submit} isDisabled={isBusy || !canSubmit}>
         {isBusy ? "Signing in…" : "Sign in"}
       </Button>
 

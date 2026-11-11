@@ -33,6 +33,8 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
 
+  const canSubmitUsername = username.trim().length > 0;
+  const canSubmitPassword = newPassword.trim().length > 0;
   const accountBusy = isBusy || pictureState.kind === "changing";
 
   const submitPicture = async () => {
@@ -46,6 +48,7 @@ export default function Settings() {
   };
 
   const submitUsername = async () => {
+    if (accountBusy || !canSubmitUsername) return;
     setSaved(null);
     try {
       await changeUsername(username.trim());
@@ -56,6 +59,7 @@ export default function Settings() {
   };
 
   const submitPassword = async () => {
+    if (accountBusy || !canSubmitPassword) return;
     setSaved(null);
     try {
       await addPassword(newPassword);
@@ -100,7 +104,7 @@ export default function Settings() {
           placeholder="e.g. river_song"
           hint="3–20 characters: letters, numbers, underscore, dot."
         />
-        <Button onPress={submitUsername} isDisabled={accountBusy}>
+        <Button onPress={submitUsername} isDisabled={accountBusy || !canSubmitUsername}>
           {isBusy ? "Saving…" : "Save username"}
         </Button>
       </Section>
@@ -119,7 +123,7 @@ export default function Settings() {
             editable={!accountBusy}
             hint="8-15 chars, upper, lower, number & symbol"
           />
-          <Button variant="secondary" onPress={submitPassword} isDisabled={accountBusy}>
+          <Button variant="secondary" onPress={submitPassword} isDisabled={accountBusy || !canSubmitPassword}>
             {isBusy ? "Saving…" : "Add password"}
           </Button>
         </Section>
