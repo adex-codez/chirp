@@ -9,8 +9,9 @@ import (
 )
 
 type Contact struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
+	ID                string `json:"id"`
+	Username          string `json:"username"`
+	ProfilePictureURL string `json:"profile_picture_url"`
 }
 
 type ContactsService struct {
@@ -50,7 +51,7 @@ func (s *ContactsService) List(ctx context.Context, userID string) ([]Contact, e
 	}
 	result := make([]Contact, 0, len(contacts))
 	for _, contact := range contacts {
-		result = append(result, Contact{ID: contact.ID, Username: contact.Username})
+		result = append(result, Contact{ID: contact.ID, Username: contact.Username, ProfilePictureURL: contact.ProfilePictureURL})
 	}
 	return result, nil
 }

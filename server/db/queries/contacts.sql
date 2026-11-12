@@ -10,7 +10,7 @@ WHERE lower(username) = lower(sqlc.arg(username)) AND email_verified_at IS NOT N
 LIMIT 1;
 
 -- name: ListContacts :many
-SELECT users.id::text AS id, users.username
+SELECT users.id::text AS id, users.username, users.profile_picture_url
 FROM contacts
 JOIN users ON users.id = contacts.contact_id
 WHERE contacts.user_id = sqlc.arg(user_id)::uuid

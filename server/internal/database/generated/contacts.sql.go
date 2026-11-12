@@ -47,7 +47,7 @@ func (q *Queries) GetContactableUserByUsername(ctx context.Context, username str
 }
 
 const listContacts = `-- name: ListContacts :many
-SELECT users.id::text AS id, users.username
+SELECT users.id::text AS id, users.username, users.profile_picture_url
 FROM contacts
 JOIN users ON users.id = contacts.contact_id
 WHERE contacts.user_id = $1::uuid
@@ -55,8 +55,9 @@ ORDER BY contacts.created_at DESC, users.username ASC
 `
 
 type ListContactsRow struct {
-	ID       string      `json:"id"`
-	Username pgtype.Text `json:"username"`
+	ID                string      `json:"id"`
+	Username          pgtype.Text `json:"username"`
+	ProfilePictureUrl pgtype.Text `json:"profile_picture_url"`
 }
 
 func (q *Queries) ListContacts(ctx context.Context, userID pgtype.UUID) ([]ListContactsRow, error) {
@@ -68,7 +69,7 @@ func (q *Queries) ListContacts(ctx context.Context, userID pgtype.UUID) ([]ListC
 	var items []ListContactsRow
 	for rows.Next() {
 		var i ListContactsRow
-		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+		if err := rows.Scan(&i.ID, &i.Username, &i.ProfilePictureUrl); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

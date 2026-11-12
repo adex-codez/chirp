@@ -1,5 +1,4 @@
 import { Button } from "@/components/button";
-import { Avatar } from "heroui-native/avatar";
 import { ControlField } from "heroui-native/control-field";
 import { Typography } from "heroui-native/text";
 import { useState } from "react";
@@ -9,6 +8,7 @@ import { BandChip } from "@/components/band-chip";
 import { FieldInput } from "@/components/field-input";
 import { Masthead } from "@/components/masthead";
 import { Notice } from "@/components/notice";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { Screen } from "@/components/screen";
 import { Section } from "@/components/section";
 import { useTabBarSpace } from "@/components/tab-bar";
@@ -78,12 +78,7 @@ export default function Settings() {
 
       <Section label="Account">
         <View className="flex-row items-center gap-4">
-          <Avatar size="lg" color="default" alt="Your profile picture" animation="disable-all">
-            {user?.profilePictureUrl ? (
-              <Avatar.Image key={user.profilePictureUrl} source={{ uri: user.profilePictureUrl }} />
-            ) : null}
-            <Avatar.Fallback>{user?.username.slice(0, 1).toUpperCase() || "C"}</Avatar.Fallback>
-          </Avatar>
+          {user ? <ProfileAvatar subject={user} size="lg" /> : null}
           <View className="flex-1">
             <Typography>Profile picture</Typography>
             <Typography.Paragraph type="body-sm" color="muted">

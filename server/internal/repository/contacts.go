@@ -4,12 +4,14 @@ import (
 	"context"
 
 	"backend/internal/database/generated"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Contact struct {
-	ID       string
-	Username string
+	ID                string
+	Username          string
+	ProfilePictureURL string
 }
 
 type ContactRepository interface {
@@ -60,7 +62,7 @@ func (r *PostgresContactRepository) ListContacts(ctx context.Context, userID str
 	}
 	contacts := make([]Contact, 0, len(rows))
 	for _, row := range rows {
-		contacts = append(contacts, Contact{ID: row.ID, Username: row.Username.String})
+		contacts = append(contacts, Contact{ID: row.ID, Username: row.Username.String, ProfilePictureURL: row.ProfilePictureUrl.String})
 	}
 	return contacts, nil
 }

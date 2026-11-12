@@ -6,6 +6,8 @@
  */
 
 export { brand, primary, accent, night, dawn } from "./colors";
+export { avatarInk } from "./avatar";
+export type { AvatarInk } from "./avatar";
 export { spacing } from "./spacing";
 export { type, fontStack, bandLabel, barLabel, displayTitle } from "./typography";
 export type { TypeVariant } from "./typography";

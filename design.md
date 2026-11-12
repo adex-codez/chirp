@@ -53,6 +53,12 @@ Accent pairs (`accent.light` / `accent.dark`) mirror `--accent` /
 - Dark: `brand[300]` bg, `brand[950]` fg (≈7:1 contrast) — navy `#0F2A44`
   is too dark on a dark background, so dark mode uses the tint.
 
+Identity avatars are the one generated palette. `theme/avatar.ts` maps a
+stable User id to a muted hue at fixed saturation and lightness, with the
+accent foreground. It is content, not chrome: the color is
+scheme-independent so a person's disc does not change when the phone
+switches appearance.
+
 In `className`, use `text-accent` / `bg-accent`. `accent-*` soft/hover
 variants derive automatically via `color-mix` in HeroUI's theme.
 
@@ -228,7 +234,7 @@ sets both route order and chrome. `Screen` takes
 Shared primitives live in `src/components/`: `chirp-logo`, `auth-shell`,
 `screen`, `masthead`, `section`, `notice`, `icons`, `band-chip`,
 `field-input`, `code-field`, `provider-marks`, `safe-area-view`,
-`songline`, `tab-bar`. Text comes from HeroUI's `Typography`. Every new
+`profile-avatar`, `songline`, `tab-bar`. Text comes from HeroUI's `Typography`. Every new
 primitive defines explicitly:
 
 - **Variants** — visual intent (`primary`, `secondary`, `ghost`,

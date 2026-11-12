@@ -9,6 +9,7 @@ import { FieldInput } from "@/components/field-input";
 import { Plus } from "@/components/icons";
 import { Masthead } from "@/components/masthead";
 import { Notice } from "@/components/notice";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { Screen } from "@/components/screen";
 import { useTabBarSpace } from "@/components/tab-bar";
 import { addContact, listContacts, type Contact } from "@/lib/contacts";
@@ -130,7 +131,10 @@ export default function Chat() {
                     onPress={() => setScreen({ kind: "conversation", contact })}
                     style={({ pressed }) => [pressed ? { opacity: 0.6 } : null]}
                   >
-                    <Typography weight="bold">@{contact.username}</Typography>
+                    <View className="flex flex-row items-center gap-2">
+                      <ProfileAvatar subject={contact} />
+                      <Typography weight="bold">@{contact.username}</Typography>
+                    </View>
                   </Pressable>
                 ))
               : null}
