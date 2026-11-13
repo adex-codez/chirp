@@ -52,6 +52,27 @@ export function Plus({ size = 24, color, strokeWidth = 1.8 }: IconProps) {
   );
 }
 
+export function Camera({ size = 20, color, strokeWidth = 1.7 }: IconProps) {
+  return (
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Path
+        d="M4 7.5h3l1.5-2h7l1.5 2h3a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-16A1.5 1.5 0 0 1 3 18V9a1.5 1.5 0 0 1 1-1.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={13} r={3.25} stroke={color} strokeWidth={strokeWidth} />
+    </Svg>
+  );
+}
+
 export function Check({ size = 14, color, strokeWidth = 2 }: IconProps) {
   return (
     <Svg

@@ -10,7 +10,7 @@ export default function Index() {
   const status = useSessionStore((state) => state.status);
 
   if (status === "authenticated") {
-    return <Redirect href="/(app)" />;
+    return <Redirect href="/(app)/(tabs)" />;
   }
   if (status === "pending-verification") {
     return <Redirect href="/verify" />;
