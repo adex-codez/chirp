@@ -108,7 +108,6 @@ export default function Settings() {
             </Button>
           </View>
           <Typography.Heading type="h5">{user.username}</Typography.Heading>
-          <BandChip username={user.username} verified={user.verified} />
           {pictureState.kind === "changing" ? (
             <Typography.Paragraph type="body-sm" color="muted">
               Updating profile picture…
@@ -127,7 +126,6 @@ export default function Settings() {
           className="min-h-14 flex-row items-center gap-4 border-b border-separator px-1"
           style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
         >
-          <Typography className="w-6 text-center text-muted">@</Typography>
           <View className="flex-1">
             <Typography>Username</Typography>
             <Typography.Paragraph type="body-sm" color="muted">
