@@ -8,13 +8,5 @@ import { useRealtimeStore } from "@/store/use-realtime-store";
 export function useRealtimeEvent(
   handler: (event: EventEnvelope) => void,
 ): void {
-  useEffect(
-    () =>
-      useRealtimeStore.subscribe((state, previous) => {
-        if (state.lastEvent && state.lastEvent !== previous.lastEvent) {
-          handler(state.lastEvent);
-        }
-      }),
-    [handler],
-  );
+  useEffect(() => useRealtimeStore.getState().subscribe(handler), [handler]);
 }
