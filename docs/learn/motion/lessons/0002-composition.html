@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>02 · Composition — Chirp motion course</title>
+    <link rel="stylesheet" href="../assets/course.css" />
+  </head>
+  <body>
+    <nav class="course-nav" aria-label="Course">
+      <a href="0001-the-anchor.html">01 · The anchor</a>
+      <a href="0002-composition.html" aria-current="page">02 · Composition</a>
+      <a href="../reference/glossary.html">Glossary</a>
+      <a href="../reference/recipes.html">Recipes</a>
+    </nav>
+
+    <header class="plate">
+      <div class="plate-inner">
+        <p class="crumb"><a href="0002-composition.html">Lesson 02</a> / composition</p>
+        <h1>One anchor, several moves</h1>
+        <p class="dek">
+          Complex animation is not a bigger animation. It is one anchor fanned
+          out, chained in time, and handed off to a spring when a finger lets go.
+        </p>
+        <p class="meta">
+          <span><b>16</b> minutes</span>
+          <span>Build in <b>chirp-mobile</b></span>
+          <span>Prior <b>01 · The anchor</b></span>
+        </p>
+      </div>
+    </header>
+
+    <main class="sheet">
+      <div class="cols">
+        <article class="prose">
+          <p class="lede">
+            Lesson 01 left you with a number that persists and a function that
+            reads it. Everything called “complex” is built from three moves on
+            that same pair: derive many properties, chain animations in time,
+            and let a gesture write the anchor before a spring takes over.
+          </p>
+
+          <h2>Fan out: one write, many properties</h2>
+
+          <p>
+            Keep the anchor as a single 0 → 1 progress. Let
+            <code>interpolate</code> map that range onto each property. The
+            anchor moves once per frame; every style value is arithmetic on it.
+          </p>
+
+          <figure class="code">
+            <figcaption>message-in.tsx — the anchor is <code>enter</code></figcaption>
+            <pre><code><span class="c-kw">const</span> enter = <span class="c-fn">useSharedValue</span>(0);
+
+enter.value = <span class="c-fn">withSpring</span>(1, { damping: 18, stiffness: 160 });
+
+<span class="c-kw">const</span> animated = <span class="c-fn">useAnimatedStyle</span>(() =&gt; {
+<span class="c-hl">  <span class="c-kw">const</span> p = enter.value;</span>
+  <span class="c-kw">return</span> {
+    opacity: <span class="c-fn">interpolate</span>(p, [0, 0.2], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      { translateY: <span class="c-fn">interpolate</span>(p, [0, 1], [16, 0], Extrapolation.CLAMP) },
+      { scale: <span class="c-fn">interpolate</span>(p, [0, 1], [0.96, 1], Extrapolation.CLAMP) },
+    ],
+  };
+});</code></pre>
+          </figure>
+
+          <p>
+            Two details matter more than they look. First,
+            <code>Extrapolation.CLAMP</code>: a spring can overshoot past 1, and
+            an unclamped opacity of <code>1.07</code> is not a value the platform
+            likes. Second, the ranges are ordered and monotonic — interpolation
+            is a lookup between stops, not a formula that infers intent.
+          </p>
+
+          <p>
+            This is also the answer to “should I add another anchor?”. Add one
+            only when a value needs to move on a <em>different schedule</em>. If
+            two things always move together, they are one anchor with two
+            derived styles.
+          </p>
+
+          <h2>Chain: several steps, still one anchor</h2>
+
+          <p>
+            <span class="term">Animation modifiers</span> wrap an animation
+            function to change its shape in time.
+            <code>withSequence</code> chains steps, <code>withDelay</code> offsets
+            a start, <code>withRepeat</code> loops, <code>withClamp</code> limits
+            travel. Your existing shake is the natural first conversion — same
+            numbers, one thread better:
+          </p>
+
+          <figure class="code">
+            <figcaption>code-field.tsx — replacing Animated.sequence</figcaption>
+            <pre><code><span class="c-kw">const</span> STEP = motion.fast / 3;
+<span class="c-kw">const</span> shake = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> animated = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  transform: [{ translateX: shake.value }],
+}));
+
+<span class="c-kw">const</span> <span class="c-fn">fail</span> = () =&gt; {
+  shake.value = <span class="c-fn">withSequence</span>(
+<span class="c-hl">    <span class="c-fn">withTiming</span>(7, { duration: STEP }),</span>
+    <span class="c-fn">withTiming</span>(-7, { duration: STEP }),
+    <span class="c-fn">withTiming</span>(3.5, { duration: STEP }),
+    <span class="c-fn">withTiming</span>(0, { duration: STEP }),
+  );
+};</code></pre>
+          </figure>
+
+          <p>
+            The legacy version needed a <code>useEffect</code> watching
+            <code>isInvalid</code> and an <code>Animated.sequence</code> built on
+            every change. Here the sequence is a value assigned when you decide
+            the shake should happen — a press, a failed submit — and nothing
+            runs on the JS thread afterwards.
+          </p>
+
+          <p>
+            Chain steps the same way for a two-part reveal: lead with scale, let
+            opacity follow, or delay the second half so the eye reads them in
+            order. Chaining is cheap because every step writes the same anchor.
+          </p>
+
+          <h2>Hand off: the finger writes, the spring decides</h2>
+
+          <p>
+            Gesture Handler callbacks are <span class="term">worklets</span>, so a
+            gesture can write an anchor directly from the UI thread. No state
+            round-trip, no dropped frames. The pattern has exactly three parts:
+            the finger writes during the drag, the spring settles on release, and
+            one animated style derived from the anchor paints.
+          </p>
+
+          <div class="demo" data-drag-demo data-open="-96" data-threshold="-64">
+            <div class="demo-head">
+              <b>swipe to reply</b>
+              <span>drag left · release past halfway</span>
+            </div>
+            <div class="demo-body">
+              <div class="row-stage">
+                <div class="reply-track">
+                  <div class="reply-flag" data-flag>reply</div>
+                  <div class="reply-row" data-row>
+                    <div class="who">Amara · 09:14</div>
+                    <p>The dawn chorus was loud this morning.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="demo-row">
+                <button class="btn ghost" data-reset>Close the row</button>
+                <span class="readout">
+                  anchor <b data-value>0px</b><br />
+                  <span>translateX</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p>
+            Drag it. The number in the readout is the anchor; the row is a
+            derived style. Release before the halfway point and the spring takes
+            it back. It is the same loop as lesson 01, with a finger in place of a
+            button.
+          </p>
+
+          <figure class="code">
+            <figcaption>message-row.tsx</figcaption>
+            <pre><code><span class="c-kw">const</span> OPEN = -96;
+<span class="c-kw">const</span> THRESHOLD = -64;
+<span class="c-kw">const</span> x = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> pan = Gesture.<span class="c-fn">Pan</span>()
+  .<span class="c-fn">activeOffsetX</span>([-12, 12])
+<span class="c-hl">  .<span class="c-fn">onUpdate</span>((event) =&gt; {
+    x.value = Math.<span class="c-fn">min</span>(0, event.translationX);
+  })</span>
+  .<span class="c-fn">onEnd</span>(() =&gt; {
+    x.value = <span class="c-fn">withSpring</span>(x.value &lt; THRESHOLD ? OPEN : 0, {
+      damping: 20,
+      stiffness: 220,
+    }, (finished) =&gt; {
+      <span class="c-kw">if</span> (finished &amp;&amp; x.value === OPEN) <span class="c-fn">scheduleOnRN</span>(onReply);
+    });
+  });
+
+<span class="c-kw">const</span> row = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  transform: [{ translateX: x.value }],
+}));</code></pre>
+          </figure>
+
+          <p>
+            Three things to notice. <code>event.translationX</code> is relative
+            to where the gesture began, so it needs no offset bookkeeping.
+            <code>onEnd</code> derives its target from the anchor's current
+            value — the finger's final position decides the outcome. And the
+            spring's completion callback runs on the UI thread, so the side
+            effect crosses back with <code>scheduleOnRN</code>, the current name
+            for <code>runOnJS</code>.
+          </p>
+
+          <div class="trap">
+            <p>
+              <span class="label">Trap</span>
+              Don't call <code>setState</code> from <code>onUpdate</code> or
+              <code>onEnd</code>. You will re-render the row on every frame of a
+              drag, which is the exact cost Reanimated exists to avoid. Write the
+              anchor; hop to JS once, at the end, if a side effect is required.
+            </p>
+          </div>
+
+          <h2>The other kind of anchor</h2>
+
+          <p>
+            Not every animation needs you to own the anchor. Layout animations —
+            <code>entering</code>, <code>exiting</code>, <code>layout</code> —
+            are Reanimated tracking a view's existence and position for you. You
+            declare the behaviour; it owns the value.
+          </p>
+
+          <figure class="code">
+            <figcaption>conversation/[id].tsx — build configs at module scope</figcaption>
+            <pre><code><span class="c-kw">const</span> ENTER = <span class="c-fn">FadeInDown</span>.<span class="c-fn">duration</span>(motion.base);
+<span class="c-kw">const</span> EXIT = <span class="c-fn">FadeOut</span>.<span class="c-fn">duration</span>(motion.fast);
+<span class="c-kw">const</span> REORDER = <span class="c-fn">LinearTransition</span>.<span class="c-fn">duration</span>(motion.base);
+
+&lt;Animated.View entering={ENTER} exiting={EXIT} layout={REORDER}&gt;
+  &lt;MessageBubble /&gt;
+&lt;/Animated.View&gt;</code></pre>
+          </figure>
+
+          <p>
+            The docs recommend building these outside the component or with
+            <code>useMemo</code>, so a new object is not created every render.
+            For a list, the anchor Reanimated uses is the item's identity — a
+            stable <code>keyExtractor</code> is what lets it animate a reorder
+            instead of replacing every row.
+          </p>
+
+          <table class="table">
+            <caption>Who owns the anchor</caption>
+            <thead>
+              <tr>
+                <th scope="col">What you are animating</th>
+                <th scope="col">Owner</th>
+                <th scope="col">Your job</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>press, toggle, reveal</td>
+                <td>you, with <code>useSharedValue</code></td>
+                <td>write it, derive styles</td>
+              </tr>
+              <tr>
+                <td>mount, unmount, reorder</td>
+                <td>Reanimated</td>
+                <td>declare presets and durations</td>
+              </tr>
+              <tr>
+                <td>drag, swipe, fling</td>
+                <td>gesture writes, spring settles</td>
+                <td>thresholds and clamps</td>
+              </tr>
+              <tr>
+                <td>scroll position</td>
+                <td>scroll handler</td>
+                <td>interpolate the offset</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2>When two components share a value</h2>
+
+          <p>
+            A derived value is an anchor computed from another anchor. Reach for
+            <code>useDerivedValue</code> when the fan-out crosses a component
+            boundary — the row and its reply flag each need the drag progress,
+            for example. If only styles on one view read it, compute inside
+            <code>useAnimatedStyle</code> instead; one less hook is one less
+            thing to explain later.
+          </p>
+
+          <figure class="code">
+            <figcaption>two readers, one normalised anchor</figcaption>
+            <pre><code><span class="c-kw">const</span> replyProgress = <span class="c-fn">useDerivedValue</span>(() =&gt;
+  <span class="c-fn">interpolate</span>(x.value, [OPEN, 0], [1, 0], Extrapolation.CLAMP),
+);
+
+<span class="c-kw">const</span> flag = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  opacity: 0.25 + replyProgress.value * 0.75,
+}));</code></pre>
+          </figure>
+
+          <h2>Check yourself</h2>
+
+          <section class="quiz" data-quiz aria-label="Recall check">
+            <div class="quiz-head">
+              <span>recall</span>
+              <span data-quiz-score>0 of 5 first try</span>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                A spring overshoots the target and opacity climbs past 1. What
+                fixes it?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Clamping is the general fix: any overshoot beyond the range snaps to the nearest stop instead of extrapolating.">Clamp the interpolated range so the value stops</button></li>
+                <li><button data-correct="false" data-why="The anchor has no knowledge of damping. Scaling it changes the animation's range, not its overshoot.">Multiply every anchor value by the damping constant</button></li>
+                <li><button data-correct="false" data-why="A sequence changes when steps run, not whether the range can be exceeded.">Move the style into a delayed sequence chain</button></li>
+                <li><button data-correct="false" data-why="A render-time read is not reactive and will not follow the animation at all.">Read the anchor value during each React render</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                The finger lifts mid-drag. Who moves the row to its resting place?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="The anchor already holds the drag position, so the spring continues from there with no jump.">The spring started from the anchor's current value</button></li>
+                <li><button data-correct="false" data-why="The gesture ended. Its recogniser stops producing updates until a new touch begins.">The gesture handler, still tracking the finger's movement</button></li>
+                <li><button data-correct="false" data-why="A timing curve would work, but the intended feel is a settle, and the base token is an entry duration.">A timing animation built from the base token</button></li>
+                <li><button data-correct="false" data-why="React state would re-render per frame. It is precisely what this pattern avoids.">React state, which re-renders the entire message row</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                Which animation owns its own anchor, so you write no shared value?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Entering and exiting presets are driven by Reanimated's view lifecycle, not by a value you hold.">An entering animation on a mounted bubble</button></li>
+                <li><button data-correct="false" data-why="Press feedback is yours: one shared value, one derived style, written by the handlers.">A press animation on a PlateButton control</button></li>
+                <li><button data-correct="false" data-why="A swipe needs an anchor you own, because the finger writes it during the gesture.">A swipe animation on a message row</button></li>
+                <li><button data-correct="false" data-why="A scroll effect reads an offset into a shared value you create and interpolate.">A scroll animation on the masthead header</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                In this course, what makes an animation “complex”?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Complexity is composition: one value, several derived properties, steps ordered in time, and a hand-off.">One anchor, derived styles, chained in time</button></li>
+                <li><button data-correct="false" data-why="More anchors mean more schedules to keep in sync, which is usually the problem, not the solution.">Several anchors, one derived style, always chained</button></li>
+                <li><button data-correct="false" data-why="The thread is an implementation detail. Several springs on one thread are still several schedules.">One anchor, several springs, on one thread</button></li>
+                <li><button data-correct="false" data-why="Independent timings produce motion that reads as unrelated, which is the opposite of the goal.">Several anchors, several styles, each independently timed</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">What does a gesture callback write, exactly?</p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Callbacks run as worklets, so they mutate the anchor on the UI thread with no bridge crossing.">The anchor, directly, from the UI thread</button></li>
+                <li><button data-correct="false" data-why="Calling setState per frame is the pattern this whole design exists to replace.">React state, through a scheduled callback hop</button></li>
+                <li><button data-correct="false" data-why="Styles are derived, never written. The style function recomputes whenever the anchor changes.">The style object, on every single frame</button></li>
+                <li><button data-correct="false" data-why="A local variable would not reach the style function, which reads the anchor only.">A local variable inside the gesture handler</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+          </section>
+
+          <h2>Build it</h2>
+
+          <p>
+            The conversation screen is the honest place to start. Add a
+            <code>MessageRow</code> in <code>src/components/</code> holding one
+            <code>x</code> anchor, a <code>Gesture.Pan()</code> with
+            <code>activeOffsetX([-12, 12])</code> so vertical scrolling still
+            works, and a threshold constant next to the other geometry. Wrap it in
+            <code>GestureDetector</code>; the app already mounts
+            <code>GestureHandlerRootView</code> in
+            <code>src/providers/app-provider.tsx</code>. Then run
+            <code>pnpm lint</code> and <code>pnpm tsc --noEmit</code> in
+            <code>chirp-mobile</code>.
+          </p>
+
+          <p>
+            Build it once with <code>withTiming</code> on release, then swap in
+            <code>withSpring</code>. The difference in feel is the whole argument
+            for springs, and you will have your own evidence instead of mine.
+          </p>
+
+          <p>
+            Bring me the result. Threshold feel, spring config, whether the flag
+            should animate its opacity at all — these are judgement calls, and
+            they are better argued against real code on a device.
+          </p>
+
+          <div class="primary-source">
+            <h2>Primary source</h2>
+            <p>
+              <a href="https://docs.swmansion.com/react-native-gesture-handler/docs/gestures/pan-gesture/">
+                Gesture Handler — Pan gesture</a
+              >, then
+              <a href="https://docs.swmansion.com/react-native-reanimated/docs/utilities/interpolate/">
+                Reanimated — interpolate</a
+              >.
+            </p>
+            <p class="why">
+              The gesture docs are the authority on when each callback fires and
+              which run on the UI thread; the interpolation page is the authority
+              on clamping. Both are maintained by the people who ship the code
+              you are calling.
+            </p>
+          </div>
+
+          <div class="next">
+            <p>
+              Next session, by ear: staggering a list, scroll-linked chrome, and
+              when an animation should not exist at all.
+            </p>
+            <a href="../reference/recipes.html">Keep the recipes sheet open →</a>
+          </div>
+        </article>
+
+        <aside class="aside">
+          <div class="note">
+            <h2>Spring vs timing, one line</h2>
+            <p>
+              Timing states a duration and an easing. A spring states mass,
+              stiffness, and damping, and settles when the physics says so.
+              Reanimated 4's defaults (damping 120, stiffness 900, mass 4) are
+              quick and critically damped; lower the damping when you want visible
+              bounce.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Cost check</h2>
+            <p>
+              Animate <code>transform</code> and <code>opacity</code> where you
+              can. Width, height, and positional layout props cost a layout pass
+              per frame — worth it for layout animations, rarely worth it by hand.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Version note</h2>
+            <p>
+              <code>scheduleOnRN</code> is the current name for crossing back to
+              JavaScript. <code>runOnJS</code> still exists as an alias, so older
+              snippets are not broken, only dated.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Glossary</h2>
+            <p>
+              <a href="../reference/glossary.html">Anchor, worklet, interpolation,
+              derived value</a> — same definitions in every lesson.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span>Chirp motion course · lesson 02</span>
+      <span class="noprint">
+        <a href="0001-the-anchor.html">Back to 01</a> ·
+        <a href="../reference/recipes.html">Recipes</a>
+      </span>
+    </footer>
+
+    <script src="../assets/quiz.js"></script>
+    <script src="../assets/drag-demo.js"></script>
+  </body>
+</html>

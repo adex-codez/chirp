@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Motion glossary — Chirp motion course</title>
+    <link rel="stylesheet" href="../assets/course.css" />
+  </head>
+  <body>
+    <nav class="course-nav" aria-label="Course">
+      <a href="../lessons/0001-the-anchor.html">01 · The anchor</a>
+      <a href="../lessons/0002-composition.html">02 · Composition</a>
+      <a href="glossary.html" aria-current="page">Glossary</a>
+      <a href="recipes.html">Recipes</a>
+    </nav>
+
+    <header class="plate">
+      <div class="plate-inner">
+        <p class="crumb"><a href="glossary.html">Reference</a> / vocabulary</p>
+        <h1>Motion glossary</h1>
+        <p class="dek">
+          One name per idea, used the same way in every lesson. If a term here
+          disagrees with the Reanimated docs, the docs win and this page is wrong.
+        </p>
+        <p class="meta">
+          <span>Reanimated <b>4.5.1</b></span>
+          <span>Worklets <b>0.10.1</b></span>
+          <span>Tokens <b>fast 150 · base 250 · slow 400</b></span>
+        </p>
+      </div>
+    </header>
+
+    <main class="sheet">
+      <div class="cols">
+        <div>
+          <dl class="entries">
+            <div class="entry">
+              <dt>Anchor <span>the idea this course is built on</span></dt>
+              <dd>
+                The value an animation is built around. It outlives every frame,
+                every render, and every animation function that writes to it.
+                In Reanimated the anchor is a
+                <a href="#shared-value">shared value</a>; styles are derived from
+                it, never written directly. One anchor can feed many style
+                properties — that is the whole trick behind complex motion.
+                <p><a href="../lessons/0001-the-anchor.html">Lesson 01</a>.</p>
+              </dd>
+            </div>
+
+            <div class="entry" id="shared-value">
+              <dt>Shared value <span><code>useSharedValue</code></span></dt>
+              <dd>
+                A mutable box holding one value, readable and writable from both
+                the JS thread and the UI thread. Created once per component with
+                <code>useSharedValue(initial)</code>, read and written through
+                <code>.value</code>. Changing <code>.value</code> does not
+                re-render React — that is the point.
+                <p>
+                  It is <em>not</em> React state. <code>useState</code> describes
+                  what to render; a shared value describes where an animation is
+                  right now.
+                </p>
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>UI thread <span>where frames are drawn</span></dt>
+              <dd>
+                The main native thread that paints the screen. Reanimated runs
+                animation functions and animated styles here, so motion continues
+                while JavaScript is busy parsing JSON or running a query.
+                JavaScript-driven animation (legacy <code>Animated</code> without
+                the native driver) runs on the JS thread and stutters when that
+                thread stalls.
+              </dd>
+            </div>
+
+            <div class="entry" id="worklet">
+              <dt>Worklet <span>a function allowed on the UI thread</span></dt>
+              <dd>
+                A short function Reanimated can copy to the UI thread and run
+                there — for example the callback passed to
+                <code>useAnimatedStyle</code>. The Worklets Babel plugin (shipped
+                by Expo) workletizes the callbacks Reanimated expects, so you
+                rarely write the <code>"worklet"</code> directive yourself.
+                <p>
+                  A worklet sees a <em>copy</em> of the values it closes over, not
+                  live JavaScript state. That is why props read inside an
+                  animated style behave like the value from when the style was
+                  created.
+                </p>
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Animated component <span><code>Animated.View</code></span></dt>
+              <dd>
+                A component Reanimated can update outside React's render loop.
+                <code>Animated.View</code>, <code>Animated.Text</code>,
+                <code>Animated.ScrollView</code> are built in; anything else needs
+                <code>Animated.createAnimatedComponent</code> (SVG elements, for
+                example). A plain <code>View</code> holding an animated style will
+                not animate.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Animated style <span><code>useAnimatedStyle</code></span></dt>
+              <dd>
+                A function from your anchors to a style object, re-run on the UI
+                thread whenever an anchor changes. This is where
+                <a href="#interpolation">interpolation</a> and arithmetic live.
+                Passing a shared value straight into <code>style</code> works for
+                one-property cases, but cannot compute anything.
+                <p>
+                  Use <code>useAnimatedProps</code> when the value is a prop
+                  (<code>r</code> on an SVG circle) rather than a style.
+                </p>
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Animation function <span><code>withTiming</code>, <code>withSpring</code>, <code>withDecay</code></span></dt>
+              <dd>
+                A function that returns an animation object. Assign it to an
+                anchor and the anchor travels to the target over time:
+                <code>pressed.value = withTiming(1)</code>. The result stored in
+                the shared value is just the number.
+                <p>
+                  <code>withTiming</code> is duration + easing — use it when the
+                  design system names a duration. <code>withSpring</code> is
+                  physics — use it when something is released, thrown, or handed
+                  off from a finger. <code>withDecay</code> is momentum after a
+                  flick.
+                </p>
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Animation modifier <span><code>withSequence</code>, <code>withDelay</code>, <code>withRepeat</code>, <code>withClamp</code></span></dt>
+              <dd>
+                Functions that wrap an animation function to change its shape in
+                time. <code>withSequence</code> chains steps (the shake in
+                <code>code-field.tsx</code>), <code>withDelay</code> offsets a
+                start, <code>withRepeat</code> loops, <code>withClamp</code>
+                limits travel. Modifiers compose: a loop of a sequence is legal.
+              </dd>
+            </div>
+
+            <div class="entry" id="interpolation">
+              <dt>Interpolation <span><code>interpolate</code></span></dt>
+              <dd>
+                Mapping one numeric range onto another:
+                <code>interpolate(p, [0, 1], [0.96, 1])</code>. It is the
+                fan-out tool — one anchor, many style values. Pass
+                <code>Extrapolation.CLAMP</code> so a spring overshoot does not
+                push opacity past 1.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Derived value <span><code>useDerivedValue</code></span></dt>
+              <dd>
+                An anchor computed from other anchors. Use it when two
+                animations need the same intermediate value, or when a gesture
+                output needs normalising before three styles read it. If only
+                styles read the value, compute it inside
+                <code>useAnimatedStyle</code> instead.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Layout animation <span><code>entering</code>, <code>exiting</code>, <code>layout</code></span></dt>
+              <dd>
+                Animation owned by Reanimated rather than by you: a component
+                fades in on mount, out on unmount, or slides when its position in
+                a list changes. No shared value, no animated style. Presets such
+                as <code>FadeInDown</code> and
+                <code>LinearTransition</code> are configured with
+                <code>.duration()</code> and <code>.springify()</code>.
+                <p>
+                  Docs recommend building these outside the component or with
+                  <code>useMemo</code>.
+                </p>
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Gesture <span><code>Gesture.Pan()</code> + <code>GestureDetector</code></span></dt>
+              <dd>
+                A recogniser from <code>react-native-gesture-handler</code> whose
+                callbacks run as worklets. The finger writes an anchor directly
+                (<code>x.value = event.translationX</code>); an animation
+                function takes over when the finger lifts. This is why gestures
+                and Reanimated are taught together.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Reduced motion <span><code>reduceMotion</code>, <code>useReducedMotion</code></span></dt>
+              <dd>
+                The OS accessibility setting for less movement. Animation
+                functions accept <code>reduceMotion</code> (default
+                <code>ReduceMotion.System</code>), so timing and springs already
+                honour the setting. Check it yourself with
+                <code>useReducedMotion()</code> when an animation is decorative
+                rather than informative.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>Motion token <span><code>motion.fast</code> · <code>base</code> · <code>slow</code></span></dt>
+              <dd>
+                Chirp's named durations: 150 ms for state feedback (press,
+                toggle), 250 ms for element transitions (enter/exit), 400 ms for
+                large surfaces (sheets, screens). Tokens are the vocabulary;
+                numbers in a lesson are examples of them.
+              </dd>
+            </div>
+
+            <div class="entry">
+              <dt>JS→UI hop <span><code>scheduleOnRN</code></span></dt>
+              <dd>
+                A worklet cannot call <code>setState</code>. To hand a result
+                back to React (send a reply, close a sheet), call
+                <code>scheduleOnRN(fn, args)</code> from the worklet. Older code
+                uses <code>runOnJS</code>, which still exists as an alias.
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <aside class="aside">
+          <div class="note">
+            <h2>How to use this page</h2>
+            <p>
+              Skim before a lesson, return after. If you cannot say what the
+              anchor is in a piece of motion code, the rest of it will not make
+              sense.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Version notice</h2>
+            <p>
+              Reanimated 4 needs the New Architecture and the separate
+              <code>react-native-worklets</code> package. Chirp has both. Code
+              from a Reanimated 2 tutorial will mostly run, but setup advice will
+              not.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Not in this glossary</h2>
+            <p>
+              CSS animations, Skia, Rive, shared element transitions. They are
+              real, they are out of scope for the mission.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span>Chirp motion course · glossary</span>
+      <span class="noprint">
+        <a href="recipes.html">Recipes</a> · <a href="../lessons/0001-the-anchor.html">Start lesson 01</a>
+      </span>
+    </footer>
+  </body>
+</html>

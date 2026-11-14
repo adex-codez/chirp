@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>01 · The anchor — Chirp motion course</title>
+    <link rel="stylesheet" href="../assets/course.css" />
+  </head>
+  <body>
+    <nav class="course-nav" aria-label="Course">
+      <a href="0001-the-anchor.html" aria-current="page">01 · The anchor</a>
+      <a href="0002-composition.html">02 · Composition</a>
+      <a href="../reference/glossary.html">Glossary</a>
+      <a href="../reference/recipes.html">Recipes</a>
+    </nav>
+
+    <header class="plate">
+      <div class="plate-inner">
+        <p class="crumb"><a href="0001-the-anchor.html">Lesson 01</a> / the model</p>
+        <h1>The anchor</h1>
+        <p class="dek">
+          Every Reanimated animation is one value that persists and a function
+          that reads it. Get the value right and “simple” and “complex” stop
+          being different subjects.
+        </p>
+        <p class="meta">
+          <span><b>12</b> minutes</span>
+          <span>Type it in <b>chirp-mobile</b></span>
+          <span>Next <b>02 · Composition</b></span>
+        </p>
+      </div>
+    </header>
+
+    <main class="sheet">
+      <div class="cols">
+        <article class="prose">
+          <p class="lede">
+            Chirp already has one animation: the shake in
+            <code>code-field.tsx</code>. It holds an
+            <code>Animated.Value</code>, then a
+            <code>useEffect</code> fires an <code>Animated.sequence</code> when
+            the code is wrong. It works. It is also the wrong shape for almost
+            everything else you want to build.
+          </p>
+
+          <p>
+            Reanimated asks one question before any API: what is the
+            <span class="term">anchor</span>? The anchor is the value an
+            animation is built around — it outlives each frame, each render, and
+            each animation that writes to it. In Reanimated the anchor is called
+            a <span class="term">shared value</span>. You create it once, change
+            it through <code>.value</code>, and derive every visual from it.
+          </p>
+
+          <p>
+            That single habit explains press feedback, message arrival, and
+            swipe gestures. They differ in <em>who writes the anchor</em> and
+            <em>how it travels</em>, not in kind.
+          </p>
+
+          <h2>What happens on every frame</h2>
+
+          <p>
+            Three things, in order. This loop is the whole library:
+          </p>
+
+          <ol>
+            <li>
+              Something <strong>writes</strong> the anchor — a press handler, a
+              gesture, or an animation function.
+            </li>
+            <li>
+              Reanimated notices, on the UI thread, and <strong>re-runs</strong>
+              the style function that reads it.
+            </li>
+            <li>
+              The style function returns plain numbers, which are
+              <strong>applied</strong> to the native view. React does not
+              re-render.
+            </li>
+          </ol>
+
+          <figure class="code">
+            <figcaption>the smallest complete animation</figcaption>
+            <pre><code><span class="c-kw">import</span> Animated, { useSharedValue, withTiming } <span class="c-kw">from</span> <span class="c-str">"react-native-reanimated"</span>;
+
+<span class="c-kw">export function</span> <span class="c-fn">Panel</span>() {
+<span class="c-hl">  <span class="c-kw">const</span> progress = <span class="c-fn">useSharedValue</span>(0); <span class="c-com">// the anchor</span></span>
+  <span class="c-kw">return</span> (
+    &lt;Animated.View
+      style={{ opacity: progress }}
+      onTouchEnd={() =&gt; {
+<span class="c-hl">        progress.value = <span class="c-fn">withTiming</span>(1, { duration: 250 });</span>
+      }}
+    /&gt;
+  );
+}</code></pre>
+          </figure>
+
+          <p>
+            The inline <code>style={{ opacity: progress }}</code> form works
+            because there is nothing to compute. The moment you want
+            <code>opacity</code> to stop at <code>0.8</code>, or a
+            <code>scale</code> to move alongside it, you need
+            <code>useAnimatedStyle</code> — a function from anchors to a style,
+            re-run on the UI thread each frame.
+          </p>
+
+          <div class="trap">
+            <p>
+              <span class="label">Trap</span>
+              <code>progress = withTiming(1)</code> rebinds a local variable and
+              animates nothing. The anchor is mutated through its property:
+              <code>progress.value = withTiming(1)</code>. There is no setter and
+              no warning.
+            </p>
+          </div>
+
+          <h2>Why the anchor lives off the JS thread</h2>
+
+          <p>
+            Legacy <code>Animated</code> with <code>useNativeDriver: false</code>
+            computes frames in JavaScript. When the JS thread is busy — parsing a
+            response, re-rendering the conversation list — frames are late, and
+            the animation visibly hitches. A shared value is readable and
+            writable from both threads, and Reanimated runs the style function on
+            the UI thread as a <span class="term">worklet</span>: a short
+            function copied there and executed on the native side.
+          </p>
+
+          <p>
+            You inherit two consequences, and both are load-bearing:
+          </p>
+
+          <ul>
+            <li>
+              <strong>Writes are cheap.</strong> A press handler in JavaScript
+              can set <code>pressed.value</code>; the travel happens natively.
+            </li>
+            <li>
+              <strong>A worklet sees a copy.</strong> Values it closes over are
+              captured, not live. A prop read inside an animated style is the
+              prop from when that worklet was created. When a value must stay
+              current, keep it in an anchor.
+            </li>
+          </ul>
+
+          <h2>Feel it</h2>
+
+          <p>
+            The instrument below is the same loop, reimplemented in this page.
+            One anchor, two ways to move it. Watch the number in the readout: it
+            is the anchor, not the style. The style is derived from it.
+          </p>
+
+          <div class="demo" data-anchor-demo data-value="1" data-unit="scale">
+            <div class="demo-head">
+              <b>press feedback</b>
+              <span>one anchor · two animation functions</span>
+            </div>
+            <div class="demo-body">
+              <div class="stage">
+                <div class="stage-target" data-target>plate</div>
+              </div>
+              <div class="demo-row">
+                <button class="btn" data-run="timing" data-to="0.94" data-duration="150">
+                  withTiming(0.94), 150 ms
+                </button>
+                <button class="btn ghost" data-run="timing" data-to="1" data-duration="150">
+                  withTiming(1), 150 ms
+                </button>
+                <button
+                  class="btn ghost"
+                  data-run="spring"
+                  data-to="1.04"
+                  data-stiffness="400"
+                  data-damping="12"
+                  data-mass="1"
+                >
+                  withSpring(1.04)
+                </button>
+                <span class="readout">
+                  anchor <b data-value>1.000</b><br />
+                  <span data-derived>transform: [{ scale: 1.000 }]</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p>
+            Both buttons assign to the same anchor. Timing states a duration;
+            the spring states physics and settles. Neither button knows or cares
+            what the style does with the number — that separation is what makes
+            the next lesson possible.
+          </p>
+
+          <h2>Which one do you reach for?</h2>
+
+          <p>
+            Chirp's design system already answers this for the common cases, in
+            <code>design.md</code>:
+          </p>
+
+          <table class="table">
+            <caption>Duration tokens, and the function that fits them</caption>
+            <thead>
+              <tr>
+                <th scope="col">Token</th>
+                <th scope="col">Value</th>
+                <th scope="col">Reach for</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>state feedback — press, toggle</td>
+                <td><code>motion.fast</code> · 150</td>
+                <td><code>withTiming</code></td>
+              </tr>
+              <tr>
+                <td>element transitions — enter, exit</td>
+                <td><code>motion.base</code> · 250</td>
+                <td><code>withTiming</code>, or a layout preset</td>
+              </tr>
+              <tr>
+                <td>large surfaces — sheets, screens</td>
+                <td><code>motion.slow</code> · 400</td>
+                <td><code>withTiming</code>, often with easing</td>
+              </tr>
+              <tr>
+                <td>anything a finger let go of</td>
+                <td>—</td>
+                <td><code>withSpring</code></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>
+            The rule underneath: a token names a duration, so use a function that
+            takes a duration. Springs are for objects with momentum and mass —
+            a released row, a knob that settles, a sheet that can be flung. A
+            button does not have mass.
+          </p>
+
+          <h2>Check yourself</h2>
+
+          <p>
+            Answer from memory. Wrong answers are more useful than right ones
+            here; the feedback explains what pulled you off.
+          </p>
+
+          <section class="quiz" data-quiz aria-label="Recall check">
+            <div class="quiz-head">
+              <span>recall</span>
+              <span data-quiz-score>0 of 5 first try</span>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                The anchor starts at 0. Which line makes it travel to 1 over
+                time?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Assigning an animation object to .value is how an anchor moves; the value stored afterwards is just a number."><code>pressed.value = withTiming(1)</code></button></li>
+                <li><button data-correct="false" data-why="This rebinds the local name and leaves the shared value untouched. No warning is emitted."><code>pressed = withTiming(1)</code></button></li>
+                <li><button data-correct="false" data-why="A shared value is not callable. It is a box with a .value property."><code>pressed.value(withTiming(1))</code></button></li>
+                <li><button data-correct="false" data-why="There is no setter. Writing through a setter would also bypass the UI-thread synchronisation."><code>setPressed.value = 1</code></button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">What does <code>useAnimatedStyle</code> give you?</p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="It is a worklet: a function from anchors to a style object, re-run on the UI thread whenever an anchor changes.">A style recalculated on the UI thread</button></li>
+                <li><button data-correct="false" data-why="It never calls setState. A shared value changing does not schedule a React render.">A state value recalculated on every render</button></li>
+                <li><button data-correct="false" data-why="That would defeat the purpose: JS-thread styles hitch when JavaScript is busy.">A style recalculated on the JS thread</button></li>
+                <li><button data-correct="false" data-why="It returns a live, animated style object. Inline shared values are the snapshot-like case.">A snapshot captured at the first render</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                A press should last <code>motion.fast</code>. Which function fits,
+                and why?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="The token names a duration; withTiming is the function that takes one.">withTiming, because the token is a duration</button></li>
+                <li><button data-correct="false" data-why="Springs are configured by stiffness and damping, not by a duration token. A press has no momentum.">withSpring, because the token is a duration</button></li>
+                <li><button data-correct="false" data-why="withDecay models friction after a flick. It has no target value at all.">withDecay, because the token is a duration</button></li>
+                <li><button data-correct="false" data-why="withRepeat loops an animation. It says nothing about how long one press takes.">withRepeat, because the token is a duration</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                Why does changing a shared value not re-render the component?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="Reanimated applies the derived style directly to the native view, outside React's reconciliation.">It updates the UI outside React's render loop</button></li>
+                <li><button data-correct="false" data-why="A shared value is deliberately not React state. Nothing is scheduled for the next render.">It updates React state outside the render loop</button></li>
+                <li><button data-correct="false" data-why="Updates are not deferred until a render; they are applied per frame on the UI thread.">It batches every update until the next render</button></li>
+                <li><button data-correct="false" data-why="Sharing happens between the JS and UI threads, not through some separate native cache.">It stores the value in a native module cache</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+
+            <div class="quiz-item">
+              <p class="quiz-q">
+                You read <code>pressed.value</code> in the component body during a
+                render. What do you get?
+              </p>
+              <ul class="quiz-options">
+                <li><button data-correct="true" data-why="The read is not reactive. To observe the anchor, read it inside a worklet, or subscribe with useAnimatedReaction.">The value captured at that render pass</button></li>
+                <li><button data-correct="false" data-why="Reading during render does not subscribe to frames. That freshness only exists inside a worklet.">The latest value from the current frame</button></li>
+                <li><button data-correct="false" data-why="A render-time read is a plain number, not a promise of a later UI-thread value.">A proxy that resolves on the UI thread</button></li>
+                <li><button data-correct="false" data-why="It reflects writes since creation too, so it can be stale without being the initial value.">The initial value passed to the hook</button></li>
+              </ul>
+              <p class="quiz-feedback" data-feedback aria-live="polite"></p>
+            </div>
+          </section>
+
+          <h2>Do this next</h2>
+
+          <p>
+            Open <code>chirp-mobile/src/components/button.tsx</code> and add press
+            feedback with the recipe on the reference sheet: one anchor, one
+            derived style, <code>motion.fast</code>. Then run <code>pnpm lint</code>
+            and <code>pnpm tsc --noEmit</code> in <code>chirp-mobile</code> — the
+            repo does not need a build for this to be verified.
+          </p>
+
+          <p>
+            If anything is unclear — the worklet copy rule, why the spring in the
+            instrument overshoots, whether a given component should animate at
+            all — ask me. I wrote the lesson; I can go sideways from here.
+          </p>
+
+          <div class="primary-source">
+            <h2>Read this before lesson 02</h2>
+            <p>
+              <a href="https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/your-first-animation/">
+                Reanimated docs — Your first animation
+              </a>
+              , followed by
+              <a href="https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/animating-styles-and-props/">
+                Animating styles and props</a
+              >.
+            </p>
+            <p class="why">
+              Ten minutes of official material, and the source for every claim
+              above. Primary because it is written by the maintainers who ship
+              the library, not by someone summarising it.
+            </p>
+          </div>
+
+          <div class="next">
+            <p>
+              Next: the same anchor, fanned out into several properties, chained,
+              and driven by a finger.
+            </p>
+            <a href="0002-composition.html">02 · Composition →</a>
+          </div>
+        </article>
+
+        <aside class="aside">
+          <div class="note">
+            <h2>Version facts</h2>
+            <p>
+              Reanimated 4.5.1 needs RN's New Architecture and the separate
+              <code>react-native-worklets</code> package. Chirp has both, and
+              Expo wires the Babel plugin. No setup is covered here because there
+              is nothing left to set up.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Where this lives</h2>
+            <p>
+              Tokens: <code>src/theme/motion.ts</code>. Contract:
+              <code>design.md</code>. The code you write should not need a new
+              duration.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Vocabulary</h2>
+            <p>
+              Anchor, shared value, worklet, animated style:
+              <a href="../reference/glossary.html">glossary</a>. If a term here
+              feels loose, that page is the fixed version.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Why not inline styles?</h2>
+            <p>
+              <code>style={{ scale: sv }}</code> cannot do arithmetic.
+              <code>useAnimatedStyle</code> can read <code>.value</code>, clamp
+              it, and fan it out. Learn the hook once.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span>Chirp motion course · lesson 01</span>
+      <span class="noprint">
+        <a href="../reference/recipes.html">Recipes</a> ·
+        <a href="0002-composition.html">Next lesson</a>
+      </span>
+    </footer>
+
+    <script src="../assets/quiz.js"></script>
+    <script src="../assets/anchor-demo.js"></script>
+  </body>
+</html>

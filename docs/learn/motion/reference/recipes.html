@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Motion recipes — Chirp motion course</title>
+    <link rel="stylesheet" href="../assets/course.css" />
+  </head>
+  <body>
+    <nav class="course-nav" aria-label="Course">
+      <a href="../lessons/0001-the-anchor.html">01 · The anchor</a>
+      <a href="../lessons/0002-composition.html">02 · Composition</a>
+      <a href="glossary.html">Glossary</a>
+      <a href="recipes.html" aria-current="page">Recipes</a>
+    </nav>
+
+    <header class="plate">
+      <div class="plate-inner">
+        <p class="crumb"><a href="recipes.html">Reference</a> / patterns</p>
+        <h1>Motion recipes</h1>
+        <p class="dek">
+          The templates worth memorising, in Chirp's terms. Every duration here
+          is a token from <code>src/theme/motion.ts</code>; every file path is a
+          real file. Print this page and keep it beside the screen.
+        </p>
+        <p class="meta">
+          <span>Reanimated <b>4.5.1</b></span>
+          <span>Gesture Handler <b>2.32</b></span>
+          <span>Updated for <b>design.md §Motion</b></span>
+        </p>
+      </div>
+    </header>
+
+    <main class="sheet">
+      <div class="cols">
+        <div>
+          <h2 style="font-family: var(--display); font-style: italic; font-weight: 400; font-size: 1.6rem; margin: 0">
+            Pick the tool before the code
+          </h2>
+
+          <table class="table">
+            <caption>What is happening → what owns the animation</caption>
+            <thead>
+              <tr>
+                <th scope="col">Situation</th>
+                <th scope="col">Tool</th>
+                <th scope="col">Anchor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Press, toggle, focus</td>
+                <td><code>withTiming</code> · <code>motion.fast</code></td>
+                <td>You own a shared value</td>
+              </tr>
+              <tr>
+                <td>Release, settle, throw</td>
+                <td><code>withSpring</code></td>
+                <td>You own a shared value</td>
+              </tr>
+              <tr>
+                <td>Item mounts or unmounts</td>
+                <td><code>entering</code> / <code>exiting</code></td>
+                <td>Reanimated owns it</td>
+              </tr>
+              <tr>
+                <td>Item changes position or size</td>
+                <td><code>layout</code></td>
+                <td>Reanimated owns it</td>
+              </tr>
+              <tr>
+                <td>Finger drags something</td>
+                <td><code>Gesture.Pan()</code> writes, spring settles</td>
+                <td>Gesture writes a shared value</td>
+              </tr>
+              <tr>
+                <td>Scroll drives an effect</td>
+                <td><code>useAnimatedScrollHandler</code></td>
+                <td>Scroll writes a shared value</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="recipe">
+            <h3>Press feedback</h3>
+            <p class="when">Used by: <code>button.tsx</code>, any tappable plate. Motion: <code>motion.fast</code>.</p>
+            <figure class="code">
+              <figcaption>press-feedback.tsx</figcaption>
+              <pre><code><span class="c-kw">import</span> Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} <span class="c-kw">from</span> <span class="c-str">"react-native-reanimated"</span>;
+<span class="c-kw">import</span> { Pressable } <span class="c-kw">from</span> <span class="c-str">"react-native"</span>;
+<span class="c-kw">import</span> { motion } <span class="c-kw">from</span> <span class="c-str">"@/theme/motion"</span>;
+
+<span class="c-kw">const</span> PRESSED = 0.03;
+
+<span class="c-kw">export function</span> <span class="c-fn">PlateButton</span>({ label, onPress }) {
+  <span class="c-kw">const</span> pressed = <span class="c-fn">useSharedValue</span>(0);
+
+  <span class="c-kw">const</span> animated = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+    transform: [{ scale: 1 - pressed.value * PRESSED }],
+  }));
+
+  <span class="c-kw">const</span> <span class="c-fn">settle</span> = (to: number) =&gt; {
+    pressed.value = <span class="c-fn">withTiming</span>(to, {
+      duration: motion.fast,
+      easing: Easing.out(Easing.quad),
+    });
+  };
+
+  <span class="c-kw">return</span> (
+    &lt;Pressable onPressIn={() =&gt; <span class="c-fn">settle</span>(1)} onPressOut={() =&gt; <span class="c-fn">settle</span>(0)} onPress={onPress}&gt;
+      &lt;Animated.View style={animated}&gt;{/* plate */}&lt;/Animated.View&gt;
+    &lt;/Pressable&gt;
+  );
+}</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Toggle</h3>
+            <p class="when">Motion: spring, no bounce. A toggle is a physical object moving, not a duration.</p>
+            <figure class="code">
+              <figcaption>toggle-knob.tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> on = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> knob = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  transform: [{ translateX: <span class="c-fn">interpolate</span>(on.value, [0, 1], [2, 22], Extrapolation.CLAMP) }],
+}));
+
+<span class="c-com">// when the value changes</span>
+on.value = <span class="c-fn">withSpring</span>(next ? 1 : 0, { damping: 20, stiffness: 220 });</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>One anchor, many properties</h3>
+            <p class="when">The core of “complex” animation. Drive one number 0 → 1, derive everything from it.</p>
+            <figure class="code">
+              <figcaption>enter-from-progress.tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> progress = <span class="c-fn">useSharedValue</span>(0);
+
+progress.value = <span class="c-fn">withSpring</span>(1, { damping: 18, stiffness: 160 });
+
+<span class="c-kw">const</span> animated = <span class="c-fn">useAnimatedStyle</span>(() =&gt; {
+  <span class="c-kw">const</span> p = progress.value;
+  <span class="c-kw">return</span> {
+    opacity: <span class="c-fn">interpolate</span>(p, [0, 0.2], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      { translateY: <span class="c-fn">interpolate</span>(p, [0, 1], [16, 0], Extrapolation.CLAMP) },
+      { scale: <span class="c-fn">interpolate</span>(p, [0, 1], [0.96, 1], Extrapolation.CLAMP) },
+    ],
+  };
+});</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Shake on invalid</h3>
+            <p class="when">Replaces the legacy <code>Animated.sequence</code> in <code>code-field.tsx</code>. Same timing, no JS thread.</p>
+            <figure class="code">
+              <figcaption>code-field.tsx (Reanimated version)</figcaption>
+              <pre><code><span class="c-kw">const</span> STEP = motion.fast / 3;
+<span class="c-kw">const</span> shake = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> animated = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  transform: [{ translateX: shake.value }],
+}));
+
+<span class="c-fn">useEffect</span>(() =&gt; {
+  <span class="c-kw">if</span> (!isInvalid) <span class="c-kw">return</span>;
+  shake.value = <span class="c-fn">withSequence</span>(
+    <span class="c-fn">withTiming</span>(7, { duration: STEP }),
+    <span class="c-fn">withTiming</span>(-7, { duration: STEP }),
+    <span class="c-fn">withTiming</span>(3.5, { duration: STEP }),
+    <span class="c-fn">withTiming</span>(0, { duration: STEP }),
+  );
+}, [isInvalid, shake]);</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Loop</h3>
+            <p class="when">Breathing seals, pending states. <code>-1</code> repeats forever; <code>true</code> reverses each pass.</p>
+            <figure class="code">
+              <figcaption>pulse.tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> pulse = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-fn">useEffect</span>(() =&gt; {
+  pulse.value = <span class="c-fn">withRepeat</span>(
+    <span class="c-fn">withTiming</span>(1, { duration: motion.slow / 2 }),
+    -1,
+    <span class="c-kw">true</span>,
+  );
+}, [pulse]);</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Message arrives, message leaves</h3>
+            <p class="when">Conversation list. No shared value: Reanimated owns the anchor. Build the configs at module scope.</p>
+            <figure class="code">
+              <figcaption>conversation/[id].tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> ENTER = <span class="c-fn">FadeInDown</span>
+  .<span class="c-fn">duration</span>(motion.base)
+  .<span class="c-fn">easing</span>(Easing.out(Easing.quad));
+<span class="c-kw">const</span> EXIT = <span class="c-fn">FadeOut</span>.<span class="c-fn">duration</span>(motion.fast);
+<span class="c-kw">const</span> REORDER = <span class="c-fn">LinearTransition</span>.<span class="c-fn">duration</span>(motion.base);
+
+&lt;Animated.View entering={ENTER} exiting={EXIT} layout={REORDER}&gt;
+  &lt;MessageBubble /&gt;
+&lt;/Animated.View&gt;</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Swipe to reply</h3>
+            <p class="when">Gesture Handler writes the anchor; a spring decides the resting place. The app already mounts <code>GestureHandlerRootView</code>.</p>
+            <figure class="code">
+              <figcaption>message-row.tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> OPEN = -96;
+<span class="c-kw">const</span> THRESHOLD = -64;
+<span class="c-kw">const</span> x = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> pan = Gesture.<span class="c-fn">Pan</span>()
+  .<span class="c-fn">activeOffsetX</span>([-12, 12])
+  .<span class="c-fn">onUpdate</span>((event) =&gt; {
+    x.value = Math.<span class="c-fn">min</span>(0, event.translationX);
+  })
+  .<span class="c-fn">onEnd</span>(() =&gt; {
+    x.value = <span class="c-fn">withSpring</span>(x.value &lt; THRESHOLD ? OPEN : 0, {
+      damping: 20,
+      stiffness: 220,
+    });
+  });
+
+<span class="c-kw">const</span> row = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  transform: [{ translateX: x.value }],
+}));
+
+&lt;GestureDetector gesture={pan}&gt;
+  &lt;Animated.View style={row}&gt;{/* content */}&lt;/Animated.View&gt;
+&lt;/GestureDetector&gt;</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Scroll drives a header</h3>
+            <p class="when">Masthead that fades as the ledger scrolls. Use <code>Animated.ScrollView</code> so the handler can run on the UI thread.</p>
+            <figure class="code">
+              <figcaption>screen.tsx</figcaption>
+              <pre><code><span class="c-kw">const</span> scrollY = <span class="c-fn">useSharedValue</span>(0);
+
+<span class="c-kw">const</span> onScroll = <span class="c-fn">useAnimatedScrollHandler</span>((event) =&gt; {
+  scrollY.value = event.contentOffset.y;
+});
+
+<span class="c-kw">const</span> masthead = <span class="c-fn">useAnimatedStyle</span>(() =&gt; ({
+  opacity: <span class="c-fn">interpolate</span>(scrollY.value, [0, 80], [1, 0], Extrapolation.CLAMP),
+}));
+
+&lt;Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16}&gt;…&lt;/Animated.ScrollView&gt;</code></pre>
+            </figure>
+          </div>
+
+          <div class="recipe">
+            <h3>Reduced motion, and handing back to React</h3>
+            <p class="when">
+              Timing and springs honour the OS setting by default. For
+              decorative loops, check explicitly; to run JS from a worklet, hop
+              back with <code>scheduleOnRN</code>.
+            </p>
+            <figure class="code">
+              <figcaption>accessibility.tsx</figcaption>
+              <pre><code><span class="c-kw">import</span> { scheduleOnRN } <span class="c-kw">from</span> <span class="c-str">"react-native-worklets"</span>;
+<span class="c-kw">import</span> { useReducedMotion } <span class="c-kw">from</span> <span class="c-str">"react-native-reanimated"</span>;
+
+<span class="c-kw">const</span> reduce = <span class="c-fn">useReducedMotion</span>();
+
+<span class="c-kw">const</span> pan = Gesture.<span class="c-fn">Pan</span>().<span class="c-fn">onEnd</span>(() =&gt; {
+  <span class="c-kw">if</span> (reduce) {
+    <span class="c-fn">scheduleOnRN</span>(onReplied);
+    <span class="c-kw">return</span>;
+  }
+  x.value = <span class="c-fn">withSpring</span>(OPEN, { damping: 20, stiffness: 220 }, () =&gt;
+    <span class="c-fn">scheduleOnRN</span>(onReplied),
+  );
+});</code></pre>
+            </figure>
+          </div>
+        </div>
+
+        <aside class="aside">
+          <div class="note">
+            <h2>Duration ladder</h2>
+            <p>
+              150 ms — press, toggle, focus.<br />
+              250 ms — enter, exit, reorder.<br />
+              400 ms — sheets, screens, large surfaces.
+            </p>
+          </div>
+          <div class="note">
+            <h2>Traps</h2>
+            <p>
+              <code>sv = 1</code> instead of <code>sv.value = 1</code>: nothing
+              moves, nothing warns.<br /><br />
+              Reading <code>.value</code> during render: stale on purpose. Read
+              it in a worklet.<br /><br />
+              Wrapping every property in its own <code>withTiming</code> inside
+              <code>useAnimatedStyle</code>: animate one anchor, derive the
+              rest.<br /><br />
+              Animating <code>width</code> or <code>left</code>: those cost
+              layout. <code>transform</code> and <code>opacity</code> stay on the
+              compositor.<br /><br />
+              Building <code>FadeIn</code> presets inside render: build them
+              once, outside.<br /><br />
+              <code>setState</code> from a worklet: use
+              <code>scheduleOnRN</code>.
+            </p>
+          </div>
+          <div class="note">
+            <h2>One import rule</h2>
+            <p>
+              <code>import Animated from "react-native-reanimated"</code> is not
+              the same import as React Native's <code>Animated</code>. Never
+              hold both in one file; the compiler will not save you.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span>Chirp motion course · recipes</span>
+      <span class="noprint">
+        <a href="glossary.html">Glossary</a> · <a href="../lessons/0002-composition.html">Lesson 02</a>
+      </span>
+    </footer>
+  </body>
+</html>
