@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { apiBaseUrl } from "@/lib/api";
 
 import {
+  isConnectionReady,
   parseServerEvent,
   type EventEnvelope,
   type RealtimeStatus,
@@ -17,6 +18,7 @@ type RealtimeHandlers = {
 };
 
 const MAX_BACKOFF_MS = 30_000;
+const REFRESH_LEAD_MS = 60_000;
 const HANDSHAKE_PROTOCOL = "chirp.v1";
 const TOKEN_PROTOCOL_PREFIX = "bearer.";
 
@@ -38,6 +40,7 @@ function websocketUrl(): string {
 export class RealtimeClient {
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private attempts = 0;
   private stopped = true;
   private generation = 0;
@@ -55,6 +58,7 @@ export class RealtimeClient {
     this.stopped = true;
     this.generation += 1;
     this.clearTimer();
+    this.clearRefreshTimer();
     this.closeSocket(1000, "client stopped");
     this.handlers.onStatus("offline");
   }
@@ -94,7 +98,11 @@ export class RealtimeClient {
       if (generation !== this.generation) return;
       if (typeof message.data !== "string") return;
       const event = parseServerEvent(message.data);
-      if (event) this.handlers.onEvent(event);
+      if (!event) return;
+      if (isConnectionReady(event)) {
+        this.scheduleRefresh(event.data.access_expires_at);
+      }
+      this.handlers.onEvent(event);
     };
     socket.onerror = () => undefined;
     socket.onclose = (event) => {
@@ -105,6 +113,7 @@ export class RealtimeClient {
   }
 
   private async handleClose(code: number): Promise<void> {
+    this.clearRefreshTimer();
     if (this.stopped) return;
     if (code === 4003) {
       this.stopped = true;
@@ -151,6 +160,36 @@ export class RealtimeClient {
     if (!this.reconnectTimer) return;
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+  }
+
+  private clearRefreshTimer(): void {
+    if (!this.refreshTimer) return;
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = null;
+  }
+
+  private scheduleRefresh(expiresAt: string): void {
+    this.clearRefreshTimer();
+    const at = Date.parse(expiresAt);
+    if (!Number.isFinite(at)) return;
+    const delay = Math.max(0, at - Date.now() - REFRESH_LEAD_MS);
+    this.refreshTimer = setTimeout(() => {
+      void this.refreshAndReconnect();
+    }, delay);
+  }
+
+  private async refreshAndReconnect(): Promise<void> {
+    this.refreshTimer = null;
+    if (this.stopped) return;
+    const generation = this.generation;
+    const refreshed = await this.handlers
+      .refreshAccessToken()
+      .catch(() => null);
+    if (this.stopped || generation !== this.generation || !refreshed) return;
+    this.generation += 1;
+    this.closeSocket(1000, "access token refreshed");
+    this.attempts = 0;
+    this.connect();
   }
 
   private closeSocket(code: number, reason: string): void {
