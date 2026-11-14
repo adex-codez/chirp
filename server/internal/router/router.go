@@ -45,6 +45,7 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig,
 		authCfg.GoogleAudiences,
 		mail.NewClient(mailCfg.SendlibAPIKey, mailCfg.SendlibBaseURL, mailCfg.SendlibFrom),
 		pictures,
+		hub,
 	)
 	auth := handler.NewAuthHandler(authApp)
 	authGroup := router.Group("/auth")
