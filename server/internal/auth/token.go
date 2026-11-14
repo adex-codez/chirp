@@ -62,48 +62,71 @@ func SignPendingToken(secret, userID string, ttl time.Duration, now time.Time) (
 	return SignAccessToken(secret, userID, "", ScopeUsernameSetup, ttl, now)
 }
 
+// AccessClaims are the verified contents of an access token. Callers that
+// need the expiry (the realtime transport) read it here instead of parsing
+// the token twice.
+type AccessClaims struct {
+	UserID    string
+	Username  string
+	Scope     TokenScope
+	ExpiresAt time.Time
+}
+
 func VerifyAccessToken(secret, token string, now time.Time) (userID, username string, scope TokenScope, err error) {
+	claims, err := VerifyAccess(secret, token, now)
+	if err != nil {
+		return "", "", "", err
+	}
+	return claims.UserID, claims.Username, claims.Scope, nil
+}
+
+func VerifyAccess(secret, token string, now time.Time) (AccessClaims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 
 	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 	var header map[string]string
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 	if header["alg"] != "HS256" {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 
 	expected := hmacSHA256(secret, parts[0]+"."+parts[1])
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || !hmac.Equal(signature, expected) {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 
 	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 	var claims accessClaims
 	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 	if claims.Subject == "" {
-		return "", "", "", ErrInvalidToken
+		return AccessClaims{}, ErrInvalidToken
 	}
 	if now.Unix() >= claims.Expiry {
-		return "", "", "", ErrExpiredToken
+		return AccessClaims{}, ErrExpiredToken
 	}
 	if claims.Scope == "" {
 		claims.Scope = ScopeFull
 	}
-	return claims.Subject, claims.Username, claims.Scope, nil
+	return AccessClaims{
+		UserID:    claims.Subject,
+		Username:  claims.Username,
+		Scope:     claims.Scope,
+		ExpiresAt: time.Unix(claims.Expiry, 0),
+	}, nil
 }
 
 func hmacSHA256(secret, message string) []byte {

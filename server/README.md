@@ -86,6 +86,12 @@ Expected response:
 
 If a `ServerConfig` is constructed without timeout values, the server falls back to a 10-second shutdown timeout. The application entrypoint also restores the 10-second startup timeout before connecting to PostgreSQL.
 
+## Realtime events
+
+`GET /ws` upgrades to an authenticated WebSocket for server-pushed events.
+The handshake, envelope, event catalog, close codes, and client reconnect
+rules live in [`../docs/websocket.md`](../docs/websocket.md).
+
 ## Logging
 
 The server writes one structured line per event to stdout. Three environment variables control the output:

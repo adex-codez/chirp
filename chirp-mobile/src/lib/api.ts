@@ -2,7 +2,7 @@ import type { ApiCode } from "./api-codes";
 import { isApiCode } from "./api-codes";
 import { messageFor } from "./api-messages";
 
-const baseUrl =
+export const apiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ||
   "http://localhost:8080";
 
@@ -70,7 +70,7 @@ export async function apiFetch<T>(
   } = {},
 ): Promise<T> {
   const { method = "GET", body, accessToken } = init;
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(`${apiBaseUrl}${path}`, {
     method,
     headers: {
       ...(body !== undefined
@@ -125,7 +125,7 @@ export async function apiAuth<T>(
 ): Promise<T> {
   if (!hooks) throw new ApiError(401, "You are not signed in.");
   const accessToken = hooks.getAccessToken();
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),
@@ -140,7 +140,7 @@ export async function apiAuth<T>(
     hooks.onAuthFailed();
     throw new ApiError(401, "Your session expired. Sign in again.");
   }
-  const retry = await fetch(`${baseUrl}${path}`, {
+  const retry = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
       ...(init?.headers ?? {}),

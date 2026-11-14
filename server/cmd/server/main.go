@@ -10,6 +10,7 @@ import (
 	"backend/internal/config"
 	"backend/internal/database"
 	"backend/internal/logging"
+	"backend/internal/realtime"
 	"backend/internal/router"
 	"backend/internal/server"
 )
@@ -49,7 +50,8 @@ func main() {
 	defer db.Close()
 	slog.Info("connected to database")
 
-	routes, err := router.New(db, cfg.Server, cfg.Auth, cfg.Mail, cfg.R2)
+	hub := realtime.NewHub(realtime.Config{})
+	routes, err := router.New(db, cfg.Server, cfg.Auth, cfg.Mail, cfg.R2, cfg.Realtime, hub)
 	if err != nil {
 		slog.Error("failed to create router", "error", err)
 		os.Exit(1)
@@ -59,9 +61,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Hijacked WebSocket connections are outside http.Server.Shutdown, so the
+	// hub closes them when the process starts draining.
+	go func() {
+		<-ctx.Done()
+		hub.Shutdown()
+	}()
+
 	slog.Info("starting server", "addr", cfg.Server.Address(), "mode", cfg.Server.Mode)
-	if err := httpServer.Run(ctx); err != nil {
-		slog.Error("server stopped with error", "error", err)
+	runErr := httpServer.Run(ctx)
+	hub.Shutdown()
+	if runErr != nil {
+		slog.Error("server stopped with error", "error", runErr)
 		os.Exit(1)
 	}
 }
