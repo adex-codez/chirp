@@ -9,7 +9,8 @@ import { ChevronLeft } from "@/components/icons";
 import { bandLabel, displayTitle } from "@/theme/typography";
 
 type MastheadProps = {
-  title: string;
+  /** Omit where the header should stop at the rule, as a chat thread does. */
+  title?: string;
   /** Printed verbatim: pass the casing the value actually has, since
    * Usernames are case-sensitive. */
   meta?: string;
@@ -50,9 +51,11 @@ export function Masthead({ title, meta, onBack, children }: MastheadProps) {
         ) : null}
       </View>
       <View className="h-px bg-separator" />
-      <Typography.Heading style={displayTitle} type="h2">
-        {title}
-      </Typography.Heading>
+      {title ? (
+        <Typography.Heading style={displayTitle} type="h2">
+          {title}
+        </Typography.Heading>
+      ) : null}
       {children ? <View className="gap-3">{children}</View> : null}
     </View>
   );
