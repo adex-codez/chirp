@@ -44,7 +44,7 @@ export function Screen({
         {scroll ? (
           <ScrollView
             className="flex-1"
-            contentContainerClassName={`gap-6 px-6 pt-4 ${contentClassName ?? ""}`}
+            contentContainerClassName={`gap-6 px-4 pt-4 ${contentClassName ?? ""}`}
             contentContainerStyle={{ paddingBottom }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -53,7 +53,7 @@ export function Screen({
           </ScrollView>
         ) : (
           <View
-            className={`flex-1 gap-6 px-6 pt-4 ${contentClassName ?? ""}`}
+            className={`flex-1 gap-6 px-4 pt-4 ${contentClassName ?? ""}`}
             style={{ paddingBottom }}
           >
             {children}
