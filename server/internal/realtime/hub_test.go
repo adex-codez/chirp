@@ -87,6 +87,39 @@ func TestConnectionClosesWhenAccessTokenExpires(t *testing.T) {
 	assertCloseCode(t, conn, realtime.CloseTokenExpired)
 }
 
+func TestCloseUserEndsEverySession(t *testing.T) {
+	hub := realtime.NewHub(realtime.Config{})
+	first := dial(t, hub, time.Now().Add(time.Hour))
+	second := dial(t, hub, time.Now().Add(time.Hour))
+	readEvent(t, first)
+	readEvent(t, second)
+
+	hub.CloseUser("user-1", event.ReasonRevoked)
+
+	for i, conn := range []*websocket.Conn{first, second} {
+		ended := readEvent(t, conn)
+		if ended.Type != event.TypeSessionEnded {
+			t.Fatalf("conn %d type = %q", i, ended.Type)
+		}
+		var payload event.SessionEnded
+		if err := json.Unmarshal(ended.Data, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Reason != event.ReasonRevoked {
+			t.Fatalf("conn %d reason = %q", i, payload.Reason)
+		}
+		assertCloseCode(t, conn, realtime.CloseSessionEnd)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for hub.Count() != 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if count := hub.Count(); count != 0 {
+		t.Fatalf("count = %d after close", count)
+	}
+}
+
 func TestShutdownEndsEveryConnection(t *testing.T) {
 	hub := realtime.NewHub(realtime.Config{})
 	conn := dial(t, hub, time.Now().Add(time.Hour))

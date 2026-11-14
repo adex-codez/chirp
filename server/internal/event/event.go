@@ -19,11 +19,13 @@ const (
 	TypeSessionEnded    = "session.ended"
 )
 
+type EndReason string
+
 const (
-	ReasonExpired        = "expired"
-	ReasonRevoked        = "revoked"
-	ReasonSignedOut      = "signed_out"
-	ReasonServerShutdown = "server_shutdown"
+	ReasonExpired        EndReason = "expired"
+	ReasonRevoked        EndReason = "revoked"
+	ReasonSignedOut      EndReason = "signed_out"
+	ReasonServerShutdown EndReason = "server_shutdown"
 )
 
 // Event is one server-to-client frame.
@@ -46,7 +48,7 @@ type ConnectionReady struct {
 
 // SessionEnded precedes a server-initiated close.
 type SessionEnded struct {
-	Reason string `json:"reason"`
+	Reason EndReason `json:"reason"`
 }
 
 // New builds an envelope with a fresh stable ID. Payload types are concrete,

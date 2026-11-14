@@ -111,6 +111,9 @@ ignores their content.
   `4009` rather than growing memory.
 - The connection closes with `4001` when the access token expires. The client
   refreshes and reconnects.
+- Revoking a User's sessions closes every live socket for that User with a
+  `session.ended` frame whose reason is `revoked` or `signed_out`, followed by
+  close code `4003`.
 - Reconnect uses jittered exponential backoff from 1 second to 30 seconds.
 
 ## Publishing an event

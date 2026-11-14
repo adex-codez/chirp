@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"backend/internal/auth"
+	"backend/internal/event"
 	"backend/internal/mail"
 	"backend/internal/profilepicture"
 	"backend/internal/repository"
@@ -126,6 +127,11 @@ type SignUpResult struct {
 	DevCode          string     `json:"dev_verification_code,omitempty"`
 }
 
+// SessionCloser ends live realtime sessions for a User whose credentials were revoked.
+type SessionCloser interface {
+	CloseUser(userID string, reason event.EndReason)
+}
+
 // AuthService contains the application behavior for joining, verifying,
 // signing in, and Social sign-in. It depends on the four narrow persistence
 // stores it actually uses rather than one wide repository interface.
@@ -140,6 +146,7 @@ type AuthService struct {
 	googleAudiences []string
 	mailer          *mail.Client
 	pictures        *profilepicture.Client
+	live            SessionCloser
 	now             func() time.Time
 }
 
@@ -147,7 +154,7 @@ type AuthService struct {
 // point owns configuration. mailer may be nil (or disabled without an API
 // key): sends are skipped and codes stay in responses. now is nil in
 // production (uses time.Now) and overridden in tests.
-func NewAuthService(users repository.UserRepository, challenges repository.ChallengeRepository, sessions repository.SessionRepository, identities repository.IdentityRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client, pictures *profilepicture.Client) *AuthService {
+func NewAuthService(users repository.UserRepository, challenges repository.ChallengeRepository, sessions repository.SessionRepository, identities repository.IdentityRepository, jwtSecret string, devExposeCodes bool, appleAudience string, googleAudiences []string, mailer *mail.Client, pictures *profilepicture.Client, live SessionCloser) *AuthService {
 	return &AuthService{
 		users:           users,
 		challenges:      challenges,
@@ -159,6 +166,7 @@ func NewAuthService(users repository.UserRepository, challenges repository.Chall
 		googleAudiences: googleAudiences,
 		mailer:          mailer,
 		pictures:        pictures,
+		live:            live,
 		now:             nil,
 	}
 }
@@ -340,7 +348,7 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken, deviceLabel str
 	if session.Revoked || session.ReplacedBy != "" {
 		// Best-effort theft containment: the request still fails closed with
 		// ErrSessionRevoked below, so a revoke failure only delays cleanup.
-		_ = s.sessions.RevokeAllUserSessions(ctx, session.UserID)
+		_ = s.revokeAll(ctx, session.UserID, event.ReasonRevoked)
 		return AuthResult{}, ErrSessionRevoked
 	}
 	if !s.currentTime().Before(session.ExpiresAt) {
@@ -379,13 +387,21 @@ func (s *AuthService) SignOut(ctx context.Context, refreshToken string) error {
 	return s.sessions.RevokeSession(ctx, session.ID)
 }
 
+func (s *AuthService) revokeAll(ctx context.Context, userID string, reason event.EndReason) error {
+	if err := s.sessions.RevokeAllUserSessions(ctx, userID); err != nil {
+		return err
+	}
+	s.live.CloseUser(userID, reason)
+	return nil
+}
+
 // SignOutAll revokes every session of the User behind the access token.
 func (s *AuthService) SignOutAll(ctx context.Context, accessToken string) error {
 	user, err := s.Profile(ctx, accessToken)
 	if err != nil {
 		return err
 	}
-	return s.sessions.RevokeAllUserSessions(ctx, user.ID)
+	return s.revokeAll(ctx, user.ID, event.ReasonSignedOut)
 }
 
 // SocialResult answers a Social sign-in: either a full session, or a pending
@@ -612,7 +628,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, code, password s
 	if err := s.users.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
 		return err
 	}
-	return s.sessions.RevokeAllUserSessions(ctx, user.ID)
+	return s.revokeAll(ctx, user.ID, event.ReasonRevoked)
 }
 
 // AddPassword sets the first password for a signed-in User that has none

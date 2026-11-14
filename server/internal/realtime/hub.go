@@ -131,20 +131,31 @@ func (h *Hub) Publish(d Delivery) int {
 	if len(d.Events) == 0 {
 		return 0
 	}
-	h.mu.RLock()
-	sessions := make([]*Session, 0, len(h.sessions[d.UserID]))
-	for session := range h.sessions[d.UserID] {
-		sessions = append(sessions, session)
-	}
-	h.mu.RUnlock()
-
 	reached := 0
-	for _, session := range sessions {
+	for _, session := range h.snapshot(d.UserID) {
 		if session.enqueue(d.Events) {
 			reached++
 		}
 	}
 	return reached
+}
+
+// CloseUser ends every live session of one User.
+func (h *Hub) CloseUser(userID string, reason event.EndReason) {
+	for _, session := range h.snapshot(userID) {
+		session.end(event.SessionEnded{Reason: reason}, CloseSessionEnd, "session ended")
+	}
+}
+
+// snapshot copies a User's live sessions so the caller can write without the lock.
+func (h *Hub) snapshot(userID string) []*Session {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	sessions := make([]*Session, 0, len(h.sessions[userID]))
+	for session := range h.sessions[userID] {
+		sessions = append(sessions, session)
+	}
+	return sessions
 }
 
 // Shutdown ends every live connection. It is idempotent and safe to call
