@@ -6,13 +6,14 @@ import (
 	"backend/internal/mail"
 	"backend/internal/middleware"
 	"backend/internal/profilepicture"
+	"backend/internal/realtime"
 	"backend/internal/repository"
 	"backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig, mailCfg config.MailConfig, r2Cfg *config.R2Config) (*gin.Engine, error) {
+func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig, mailCfg config.MailConfig, r2Cfg *config.R2Config, realtimeCfg config.RealtimeConfig, hub *realtime.Hub) (*gin.Engine, error) {
 	gin.SetMode(cfg.Mode)
 
 	router := gin.New()
@@ -70,6 +71,9 @@ func New(pool *pgxpool.Pool, cfg config.ServerConfig, authCfg config.AuthConfig,
 	contactGroup := router.Group("/contacts")
 	contactGroup.GET("", contacts.List)
 	contactGroup.POST("", contacts.Add)
+
+	websocket := handler.NewWebSocketHandler(authApp, hub, realtimeCfg.AllowedOrigins)
+	router.GET("/ws", websocket.Connect)
 
 	return router, nil
 }

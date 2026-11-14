@@ -101,6 +101,14 @@ type PublicUser struct {
 	ProfilePictureURL string `json:"profile_picture_url"`
 }
 
+// RealtimeSession is a verified access token plus the User it belongs to.
+// The expiry lets the socket layer close the connection when the credential
+// stops being valid.
+type RealtimeSession struct {
+	User      PublicUser
+	ExpiresAt time.Time
+}
+
 // AuthResult is a signed-in session: the User plus its first token pair.
 type AuthResult struct {
 	User         PublicUser `json:"user"`
@@ -687,21 +695,26 @@ func (s *AuthService) issuePurposeChallenge(ctx context.Context, userID, purpose
 // Profile reads the current User from a presented access token. Pending
 // grants are rejected: they authorize only setting the Username.
 func (s *AuthService) Profile(ctx context.Context, accessToken string) (PublicUser, error) {
-	userID, _, scope, err := auth.VerifyAccessToken(s.jwtSecret, accessToken, s.currentTime())
+	session, err := s.RealtimeSession(ctx, accessToken)
 	if err != nil {
-		return PublicUser{}, ErrInvalidSession
-	}
-	if scope != auth.ScopeFull {
-		return PublicUser{}, ErrInvalidSession
-	}
-	user, err := s.users.GetUserByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrAuthNotFound) {
-			return PublicUser{}, ErrUserNotFound
-		}
 		return PublicUser{}, err
 	}
-	return publicUser(user), nil
+	return session.User, nil
+}
+
+func (s *AuthService) RealtimeSession(ctx context.Context, accessToken string) (RealtimeSession, error) {
+	claims, err := auth.VerifyAccess(s.jwtSecret, accessToken, s.currentTime())
+	if err != nil || claims.Scope != auth.ScopeFull {
+		return RealtimeSession{}, ErrInvalidSession
+	}
+	user, err := s.users.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAuthNotFound) {
+			return RealtimeSession{}, ErrUserNotFound
+		}
+		return RealtimeSession{}, err
+	}
+	return RealtimeSession{User: publicUser(user), ExpiresAt: claims.ExpiresAt}, nil
 }
 
 // checkChallenge validates a code against the latest challenge for a
