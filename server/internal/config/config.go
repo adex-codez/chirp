@@ -19,6 +19,13 @@ type Config struct {
 	Auth     AuthConfig
 	Mail     MailConfig
 	R2       *R2Config
+	Realtime RealtimeConfig
+}
+
+// RealtimeConfig carries the browser origins allowed to open a WebSocket.
+// Handshakes carrying an Authorization header are native and skip this list.
+type RealtimeConfig struct {
+	AllowedOrigins []string
 }
 
 type R2Config struct {
@@ -109,6 +116,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	realtimeCfg, err := loadRealtimeConfig(mode)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		Server: ServerConfig{
@@ -122,6 +133,7 @@ func Load() (Config, error) {
 		Auth:     authCfg,
 		Mail:     loadMailConfig(),
 		R2:       r2Cfg,
+		Realtime: realtimeCfg,
 	}, nil
 }
 
@@ -172,6 +184,28 @@ var (
 	r2AccountPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
 	r2BucketPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$`)
 )
+
+func loadRealtimeConfig(mode string) (RealtimeConfig, error) {
+	origins := splitList(os.Getenv("WS_ALLOWED_ORIGINS"))
+	if len(origins) == 0 && mode != "release" {
+		origins = []string{
+			"http://localhost:8081",
+			"http://127.0.0.1:8081",
+			"http://localhost:19006",
+			"http://127.0.0.1:19006",
+		}
+	}
+	for _, origin := range origins {
+		parsed, err := url.Parse(origin)
+		if err != nil || parsed.Host == "" ||
+			(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+			(parsed.Path != "" && parsed.Path != "/") ||
+			parsed.RawQuery != "" || parsed.Fragment != "" {
+			return RealtimeConfig{}, fmt.Errorf("invalid WS_ALLOWED_ORIGINS entry %q", origin)
+		}
+	}
+	return RealtimeConfig{AllowedOrigins: origins}, nil
+}
 
 func loadR2Config() (*R2Config, error) {
 	names := []string{"R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_PUBLIC_BASE_URL"}
