@@ -243,6 +243,13 @@ export const useSessionStore = create<SessionState>((set, get) => {
         });
         return;
       }
+      // The saved pair must be in the store before any renewal: refresh reads
+      // the stored refresh token, so an empty store would end a valid session.
+      set({
+        user: savedUser,
+        accessToken: saved.accessToken,
+        refreshToken: saved.refreshToken,
+      });
       // Cold start: confirm with the server so revoked sessions (including
       // sign-out-everywhere from another device) drop to guest immediately.
       try {
